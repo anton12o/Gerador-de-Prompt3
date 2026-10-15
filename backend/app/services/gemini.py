@@ -54,7 +54,7 @@ VEO_HEADER_TEMPLATE = (
     "Clean commercial footage, clean surfaces, plain background, "
     "all product parts firmly anchored with rigid physical connections and realistic gravity, no floating parts, no morphing structures, "
     "no phone screens, no UI interfaces, no fake app mockups, "
-    "no subtitles, no on-screen text, no text, no letters, no words."
+    "no subtitles, no on-screen text, no background music, no other voices, no text, no letters, no words."
 )
 
 VEO_BLOCK_0_3_TEMPLATE = (

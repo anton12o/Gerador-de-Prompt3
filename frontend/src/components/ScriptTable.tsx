@@ -24,7 +24,7 @@ function countWords(str: string): number {
 }
 
 function assemblePromptVeo(partes: ScriptPartes, hook: HookOption): string {
-  const header = `Using the provided product photo as reference: ${partes.descricao_produto}, placed on ${partes.descricao_cenario}. Clean commercial footage, clean surfaces, plain background, no phone screens, no UI interfaces, no fake app mockups, no subtitles, no on-screen text, no text, no letters, no words.`;
+  const header = `Using the provided product photo as reference: ${partes.descricao_produto}, placed on ${partes.descricao_cenario}. Clean commercial footage, clean surfaces, plain background, all product parts firmly anchored with rigid physical connections and realistic gravity, no floating parts, no morphing structures, no phone screens, no UI interfaces, no fake app mockups, no subtitles, no on-screen text, no background music, no other voices, no text, no letters, no words.`;
   const block_0_3 = `[0-3s]: ${hook.acao_visual_0_3s}. Portuguese voiceover narration says: "${hook.fala}" in a natural, clear tone (no background music, no other voices).`;
   const block_3_7 = `[3-7s]: ${partes.bloco_beneficio_visual}. Portuguese voiceover narration says: "${partes.fala_beneficio}" in a natural, clear tone (no background music, no other voices).`;
   const block_7_10 = `[7-10s]: ${partes.bloco_cta_visual}. Portuguese voiceover narration says: "${partes.fala_cta}" in a natural, clear tone (no background music, no other voices).`;
