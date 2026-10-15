@@ -23,8 +23,6 @@ export function App() {
   const [currentImagesBase64, setCurrentImagesBase64] = useState<string[]>([]);
   const [currentMimeType, setCurrentMimeType] = useState<string | undefined>();
   const [currentContext, setCurrentContext] = useState<string>('');
-  const [currentStylePreset, setCurrentStylePreset] = useState<'ugc_realista' | 'cinematic_studio' | 'macro_produto'>('ugc_realista');
-  const [currentVideoEngine, setCurrentVideoEngine] = useState<'veo3' | 'dreamina' | 'kling' | 'luma'>('veo3');
   const [scriptResult, setScriptResult] = useState<ScriptResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -91,9 +89,7 @@ export function App() {
     imagesBase64: string[],
     mimeType?: string,
     context?: string,
-    force: boolean = false,
-    stylePreset: 'ugc_realista' | 'cinematic_studio' | 'macro_produto' = 'ugc_realista',
-    videoEngine: 'veo3' | 'dreamina' | 'kling' | 'luma' = 'veo3'
+    force: boolean = false
   ) => {
     if (isBackendHealthy === false) {
       setErrorMessage(
@@ -107,16 +103,14 @@ export function App() {
     setCurrentImagesBase64(imagesBase64);
     setCurrentMimeType(mimeType);
     setCurrentContext(context || '');
-    setCurrentStylePreset(stylePreset);
-    setCurrentVideoEngine(videoEngine);
 
     try {
       const result = await generateScriptApi({
         images_base64: imagesBase64,
         image_mime_type: mimeType,
         context: context,
-        style_preset: stylePreset,
-        video_engine: videoEngine,
+        style_preset: 'ugc_realista',
+        video_engine: 'veo3',
         force_generation: force,
       });
       setScriptResult(result);
@@ -140,8 +134,8 @@ export function App() {
         images_base64: currentImagesBase64,
         image_mime_type: currentMimeType,
         context: currentContext,
-        style_preset: currentStylePreset,
-        video_engine: currentVideoEngine,
+        style_preset: 'ugc_realista',
+        video_engine: 'veo3',
         clarification_answers: answers,
       });
       setScriptResult(result);
@@ -165,8 +159,8 @@ export function App() {
         images_base64: currentImagesBase64,
         image_mime_type: currentMimeType,
         context: currentContext,
-        style_preset: currentStylePreset,
-        video_engine: currentVideoEngine,
+        style_preset: 'ugc_realista',
+        video_engine: 'veo3',
         force_generation: true,
       });
       setScriptResult(result);
@@ -191,8 +185,8 @@ export function App() {
         images_base64: currentImagesBase64,
         image_mime_type: currentMimeType,
         context: currentContext,
-        style_preset: currentStylePreset,
-        video_engine: currentVideoEngine,
+        style_preset: 'ugc_realista',
+        video_engine: 'veo3',
         previous_response: scriptResult,
         refinement_instruction: instruction,
       });

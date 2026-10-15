@@ -87,11 +87,15 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
     return result.locucao_pt || '';
   })();
 
-  // Word counts
+  // Word and character counts
   const totalWords = countWords(activeLocucaoPt);
+  const totalChars = activeLocucaoPt.length;
   const hookWords = activeHookOption ? countWords(activeHookOption.fala) : 0;
+  const hookChars = activeHookOption ? activeHookOption.fala.length : 0;
   const beneficioWords = result.partes ? countWords(result.partes.fala_beneficio) : 0;
+  const beneficioChars = result.partes ? result.partes.fala_beneficio.length : 0;
   const ctaWords = result.partes ? countWords(result.partes.fala_cta) : 0;
+  const ctaChars = result.partes ? result.partes.fala_cta.length : 0;
 
   const generateFormattedText = () => {
     // 10s Veo Format
@@ -101,6 +105,7 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
       text += `========================================================\n\n`;
       text += `DIAGNÓSTICO DO CONSULTOR: ${result.diagnosis}\n`;
       if (result.category) text += `CATEGORIA: ${result.category}\n`;
+      if (result.modelo_utilizado) text += `MODELO IA: ${result.modelo_utilizado}\n`;
       if (result.refinement_summary) text += `REFINAMENTO APLICADO: ${result.refinement_summary}\n`;
       text += `\n`;
 
@@ -113,19 +118,19 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
         const q = result.multiple_hooks.quebra_de_padrao;
 
         if (d && typeof d === 'object') {
-          text += `[A - DOR]: "${d.fala}" (${countWords(d.fala)} palavras)\nVisual 0-3s: ${d.acao_visual_0_3s}\n\n`;
+          text += `[A - DOR]: "${d.fala}" (${countWords(d.fala)} pal. / ${d.fala.length} car.)\nVisual 0-3s: ${d.acao_visual_0_3s}\n\n`;
         } else if (typeof d === 'string') {
           text += `[A - DOR]: "${d}"\n\n`;
         }
 
         if (c && typeof c === 'object') {
-          text += `[B - CURIOSIDADE]: "${c.fala}" (${countWords(c.fala)} palavras)\nVisual 0-3s: ${c.acao_visual_0_3s}\n\n`;
+          text += `[B - CURIOSIDADE]: "${c.fala}" (${countWords(c.fala)} pal. / ${c.fala.length} car.)\nVisual 0-3s: ${c.acao_visual_0_3s}\n\n`;
         } else if (typeof c === 'string') {
           text += `[B - CURIOSIDADE]: "${c}"\n\n`;
         }
 
         if (q && typeof q === 'object') {
-          text += `[C - QUEBRA DE PADRÃO]: "${q.fala}" (${countWords(q.fala)} palavras)\nVisual 0-3s: ${q.acao_visual_0_3s}\n\n`;
+          text += `[C - QUEBRA DE PADRÃO]: "${q.fala}" (${countWords(q.fala)} pal. / ${q.fala.length} car.)\nVisual 0-3s: ${q.acao_visual_0_3s}\n\n`;
         } else if (typeof q === 'string') {
           text += `[C - QUEBRA DE PADRÃO]: "${q}"\n\n`;
         }
@@ -137,7 +142,7 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
       text += `${activePromptVeo}\n\n`;
 
       text += `--------------------------------------------------------\n`;
-      text += `3. LOCUÇÃO EM PORTUGUÊS (${totalWords} palavras)\n`;
+      text += `3. LOCUÇÃO EM PORTUGUÊS (${totalWords} palavras • ${totalChars} caracteres)\n`;
       text += `--------------------------------------------------------\n`;
       text += `"${activeLocucaoPt}"\n`;
 
@@ -204,6 +209,14 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Model Traceability Badge */}
+            {result.modelo_utilizado && (
+              <span className="px-2.5 py-1 bg-slate-800/90 border border-slate-700 text-slate-300 font-mono text-[11px] rounded-xl flex items-center gap-1.5 shadow-sm" title="Modelo de IA utilizado">
+                <span>⚙️ Gerado por:</span>
+                <strong className="text-amber-400 font-semibold">{result.modelo_utilizado}</strong>
+              </span>
+            )}
+
             {result.category && (
               <span className="px-3 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-300 font-semibold text-xs rounded-full">
                 {result.category}
@@ -264,7 +277,10 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
             10s Google Veo
           </span>
           <span className="text-[11px] px-2.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-md">
-            18-23 Palavras Locução
+            18-23 Palavras
+          </span>
+          <span className="text-[11px] px-2.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-md">
+            ≤ 150 Caracteres
           </span>
           <span className="text-[11px] px-2.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-md">
             Movimento Dinâmico 0-3s
@@ -289,7 +305,7 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
                   2. Alternativas de Ganchos (Bloco 0-3s)
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Clique para selecionar o gancho ativo. O prompt Veo e a locução serão remontados em tempo real.
+                  Clique para alternar o gancho ativo. O prompt Veo e a locução serão remontados instantaneamente.
                 </p>
               </div>
             </div>
@@ -303,6 +319,7 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
               const fala = typeof raw === 'object' ? raw.fala : (raw as string);
               const acao = typeof raw === 'object' ? raw.acao_visual_0_3s : '';
               const words = countWords(fala);
+              const chars = fala.length;
               const isSelected = activeHookKey === 'dor';
 
               return (
@@ -322,7 +339,7 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
                       </span>
                       <div className="flex items-center gap-1">
                         <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
-                          {words}/7 pal.
+                          {words}/7 pal. • {chars}/45 car.
                         </span>
                         <button
                           type="button"
@@ -367,6 +384,7 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
               const fala = typeof raw === 'object' ? raw.fala : (raw as string);
               const acao = typeof raw === 'object' ? raw.acao_visual_0_3s : '';
               const words = countWords(fala);
+              const chars = fala.length;
               const isSelected = activeHookKey === 'curiosidade';
 
               return (
@@ -386,7 +404,7 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
                       </span>
                       <div className="flex items-center gap-1">
                         <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
-                          {words}/7 pal.
+                          {words}/7 pal. • {chars}/45 car.
                         </span>
                         <button
                           type="button"
@@ -431,6 +449,7 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
               const fala = typeof raw === 'object' ? raw.fala : (raw as string);
               const acao = typeof raw === 'object' ? raw.acao_visual_0_3s : '';
               const words = countWords(fala);
+              const chars = fala.length;
               const isSelected = activeHookKey === 'quebra_de_padrao';
 
               return (
@@ -450,7 +469,7 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
                       </span>
                       <div className="flex items-center gap-1">
                         <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
-                          {words}/7 pal.
+                          {words}/7 pal. • {chars}/45 car.
                         </span>
                         <button
                           type="button"
@@ -535,7 +554,7 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
         </div>
       )}
 
-      {/* 4. Complete Voiceover in Portuguese */}
+      {/* 4. Complete Voiceover in Portuguese (Hybrid Validation) */}
       {activeLocucaoPt && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-md">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -577,39 +596,39 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
             "{activeLocucaoPt}"
           </div>
 
-          {/* Word counts breakdown */}
+          {/* Word and Character counts breakdown (Hybrid Validation) */}
           <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-800/80 text-xs">
-            <span className="font-semibold text-slate-400">Contagem de Palavras:</span>
+            <span className="font-semibold text-slate-400">Validação Híbrida:</span>
             <span
               className={`px-2.5 py-0.5 rounded-md font-mono font-bold ${
-                totalWords >= 18 && totalWords <= 23
+                totalWords >= 18 && totalWords <= 23 && totalChars <= 150
                   ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
                   : 'bg-amber-500/10 border border-amber-500/30 text-amber-300'
               }`}
             >
-              Total: {totalWords} palavras {totalWords >= 18 && totalWords <= 23 ? '✓ (Meta 18-23)' : ''}
+              Total: {totalWords} palavras • {totalChars}/150 car. {totalWords >= 18 && totalWords <= 23 && totalChars <= 150 ? '✓ (10s calibrado)' : ''}
             </span>
 
             {hookWords > 0 && (
               <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[11px]">
-                Gancho: {hookWords}/7
+                Gancho: {hookWords}/7 pal. ({hookChars}/45 car.)
               </span>
             )}
 
             {beneficioWords > 0 && (
               <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[11px]">
-                Benefício: {beneficioWords}/11
+                Benefício: {beneficioWords}/11 pal. ({beneficioChars}/70 car.)
               </span>
             )}
 
             {ctaWords > 0 && (
               <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[11px]">
-                CTA: {ctaWords}/5
+                CTA: {ctaWords}/5 pal. ({ctaChars}/35 car.)
               </span>
             )}
 
             <span className="text-slate-500 text-[11px] ml-auto">
-              Ritmo estimado: ~2.5 pal/s (~{(totalWords / 2.5).toFixed(1)}s de áudio)
+              Ritmo: ~2.5 pal/s (~{(totalWords / 2.5).toFixed(1)}s de áudio)
             </span>
           </div>
         </div>

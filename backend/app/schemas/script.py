@@ -16,6 +16,10 @@ class HookOption(BaseModel):
         default=None,
         description="Contagem real de palavras calculada pelo backend"
     )
+    caracteres_contados: Optional[int] = Field(
+        default=None,
+        description="Contagem real de caracteres com espaços calculada pelo backend (máximo 45)"
+    )
 
 class MultipleHooks(BaseModel):
     dor: HookOption = Field(description="Opção de gancho inicial focada na Dor/Problema que o produto resolve")
@@ -50,6 +54,13 @@ class ContagemBlocos(BaseModel):
     dor: int = Field(default=0, description="Palavras no gancho Dor")
     curiosidade: int = Field(default=0, description="Palavras no gancho Curiosidade")
     quebra_de_padrao: int = Field(default=0, description="Palavras no gancho Quebra de Padrão")
+    caracteres_gancho: int = Field(default=0, description="Caracteres no gancho ativo (máx 45)")
+    caracteres_beneficio: int = Field(default=0, description="Caracteres no benefício (máx 70)")
+    caracteres_cta: int = Field(default=0, description="Caracteres no CTA (máx 35)")
+    caracteres_total: int = Field(default=0, description="Caracteres totais da locução ativa (máx 150)")
+    caracteres_dor: int = Field(default=0, description="Caracteres no gancho Dor (máx 45)")
+    caracteres_curiosidade: int = Field(default=0, description="Caracteres no gancho Curiosidade (máx 45)")
+    caracteres_quebra_de_padrao: int = Field(default=0, description="Caracteres no gancho Quebra de Padrão (máx 45)")
 
 class ScriptModelOutput(BaseModel):
     """Schema estrito para o retorno do modelo Gemini (sem dicionários genéricos)."""
@@ -106,9 +117,17 @@ class ScriptResult(ScriptModelOutput):
         default=None,
         description="Contagem real total de palavras calculada pelo backend (estritamente entre 18 e 23 palavras)"
     )
+    total_caracteres: Optional[int] = Field(
+        default=None,
+        description="Contagem real total de caracteres com espaços calculada pelo backend (máximo 150 caracteres)"
+    )
     contagem_blocos: Optional[ContagemBlocos] = Field(
         default=None,
-        description="Contagens individuais de palavras calculadas pelo backend"
+        description="Contagens individuais de palavras e caracteres calculadas pelo backend"
+    )
+    modelo_utilizado: Optional[str] = Field(
+        default=None,
+        description="Modelo de IA utilizado com sucesso para gerar o roteiro (ex: gemini-3.5-flash-lite ou gemini-3.8-flash)"
     )
     scenes: Optional[List[SceneItem]] = Field(
         default=None,

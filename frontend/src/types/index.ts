@@ -9,6 +9,7 @@ export interface HookOption {
   fala: string;
   acao_visual_0_3s: string;
   palavras_contadas?: number;
+  caracteres_contados?: number;
 }
 
 export interface MultipleHooks {
@@ -33,6 +34,13 @@ export interface ContagemBlocos {
   dor: number;
   curiosidade: number;
   quebra_de_padrao: number;
+  caracteres_gancho?: number;
+  caracteres_beneficio?: number;
+  caracteres_cta?: number;
+  caracteres_total?: number;
+  caracteres_dor?: number;
+  caracteres_curiosidade?: number;
+  caracteres_quebra_de_padrao?: number;
 }
 
 export interface SceneItem {
@@ -54,7 +62,9 @@ export interface ScriptResult {
   prompt_veo?: string;
   locucao_pt?: string;
   total_palavras?: number;
+  total_caracteres?: number;
   contagem_blocos?: ContagemBlocos;
+  modelo_utilizado?: string;
   scenes?: SceneItem[]; // Suporte a registros legados
   refinement_summary?: string;
 }
