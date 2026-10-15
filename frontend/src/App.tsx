@@ -16,7 +16,8 @@ import { Loader } from './components/Loader';
 import { generateScriptApi, checkBackendHealth } from './services/api';
 import type { ScriptResult, SavedScriptItem } from './types';
 
-const STORAGE_KEY = 'mestre_gerador_saved_scripts_v3';
+const STORAGE_KEY_V4 = 'mestre_gerador_saved_scripts_v4';
+const STORAGE_KEY_LEGACY = 'mestre_gerador_saved_scripts_v3';
 
 export function App() {
   const [currentImagesBase64, setCurrentImagesBase64] = useState<string[]>([]);
@@ -36,15 +37,24 @@ export function App() {
   useEffect(() => {
     checkBackendHealth().then((healthy) => setIsBackendHealthy(healthy));
 
-    // Load saved scripts from localStorage
+    const interval = setInterval(() => {
+      checkBackendHealth().then((healthy) => setIsBackendHealthy(healthy));
+    }, 4000);
+
+    // Load saved scripts from localStorage (v4 with fallback to legacy v3)
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      let stored = localStorage.getItem(STORAGE_KEY_V4);
+      if (!stored) {
+        stored = localStorage.getItem(STORAGE_KEY_LEGACY);
+      }
       if (stored) {
         setSavedScripts(JSON.parse(stored));
       }
     } catch {
       // Ignore
     }
+
+    return () => clearInterval(interval);
   }, []);
 
   const saveToHistory = (result: ScriptResult, contextText?: string) => {
@@ -58,7 +68,7 @@ export function App() {
     };
     setSavedScripts((prev) => {
       const updated = [newItem, ...prev.slice(0, 19)]; // keep last 20
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      localStorage.setItem(STORAGE_KEY_V4, JSON.stringify(updated));
       return updated;
     });
   };
@@ -66,7 +76,8 @@ export function App() {
   const clearHistory = () => {
     if (confirm('Deseja limpar todo o histórico de roteiros salvos?')) {
       setSavedScripts([]);
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_KEY_V4);
+      localStorage.removeItem(STORAGE_KEY_LEGACY);
     }
   };
 
@@ -84,6 +95,13 @@ export function App() {
     stylePreset: 'ugc_realista' | 'cinematic_studio' | 'macro_produto' = 'ugc_realista',
     videoEngine: 'veo3' | 'dreamina' | 'kling' | 'luma' = 'veo3'
   ) => {
+    if (isBackendHealthy === false) {
+      setErrorMessage(
+        'O Backend está offline! Por favor, inicie o servidor executando o start.bat ou verificando a janela do FastAPI na porta 8000.'
+      );
+      return;
+    }
+
     setIsLoading(true);
     setErrorMessage(null);
     setCurrentImagesBase64(imagesBase64);
@@ -291,10 +309,10 @@ export function App() {
                 <Sparkles className="w-3.5 h-3.5" /> Consultor Ativo de Neurovendas
               </div>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                Crie Roteiros & Prompts para o Google Veo3
+                Crie Roteiros & Prompts para o Google Veo
               </h2>
               <p className="text-slate-400 text-sm mt-2">
-                Envie a foto ou link do produto. O Mestre Gerador diagnostica o diferencial, faz perguntas de esclarecimento se for ambíguo e entrega a tabela de 3 cenas pronta para copiar.
+                Envie a foto ou link do produto. O Mestre Gerador diagnostica o diferencial, faz perguntas de esclarecimento se for ambíguo e entrega o prompt único de 10s para Veo com locução embutida.
               </p>
             </div>
 

@@ -4,6 +4,37 @@ export interface ClarificationQuestion {
   options: string[];
 }
 
+export interface HookOption {
+  tipo: string;
+  fala: string;
+  acao_visual_0_3s: string;
+  palavras_contadas?: number;
+}
+
+export interface MultipleHooks {
+  dor: HookOption;
+  curiosidade: HookOption;
+  quebra_de_padrao: HookOption;
+}
+
+export interface ScriptPartes {
+  descricao_produto: string;
+  descricao_cenario: string;
+  fala_beneficio: string;
+  bloco_beneficio_visual: string;
+  fala_cta: string;
+  bloco_cta_visual: string;
+}
+
+export interface ContagemBlocos {
+  gancho: number;
+  beneficio: number;
+  cta: number;
+  dor: number;
+  curiosidade: number;
+  quebra_de_padrao: number;
+}
+
 export interface SceneItem {
   scene_number: number;
   scene_title: string;
@@ -12,21 +43,19 @@ export interface SceneItem {
   voiceover: string;
 }
 
-export interface MultipleHooks {
-  dor: string;
-  curiosidade: string;
-  quebra_de_padrao: string;
-}
-
 export interface ScriptResult {
   status: 'needs_clarification' | 'completed';
   diagnosis: string;
   category?: string;
   clarification_questions?: ClarificationQuestion[];
+  partes?: ScriptPartes;
   multiple_hooks?: MultipleHooks;
   selected_hook_type?: string;
-  scenes?: SceneItem[];
-  internal_checklist?: string[];
+  prompt_veo?: string;
+  locucao_pt?: string;
+  total_palavras?: number;
+  contagem_blocos?: ContagemBlocos;
+  scenes?: SceneItem[]; // Suporte a registros legados
   refinement_summary?: string;
 }
 

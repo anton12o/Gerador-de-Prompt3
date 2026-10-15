@@ -54,24 +54,58 @@ export const ImageDrop: React.FC<ImageDropProps> = ({ onGenerate, isLoading }) =
     };
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [images]);
+  }, []);
 
   const processFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
       alert('Por favor, selecione um arquivo de imagem válido (PNG, JPG, WEBP).');
       return;
     }
-    setMimeType(file.type);
+    setMimeType('image/jpeg');
     const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setImages((prev) => {
-        if (prev.length >= MAX_IMAGES) {
-          alert(`Você já atingiu o limite de ${MAX_IMAGES} imagens.`);
-          return prev;
+    reader.onload = (e) => {
+      const rawDataUrl = e.target?.result as string;
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIM = 1280;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          } else {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
         }
-        return [...prev, result];
-      });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        let finalDataUrl = rawDataUrl;
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          finalDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        }
+
+        setImages((prev) => {
+          if (prev.length >= MAX_IMAGES) {
+            alert(`Você já atingiu o limite de ${MAX_IMAGES} imagens.`);
+            return prev;
+          }
+          return [...prev, finalDataUrl];
+        });
+      };
+      img.onerror = () => {
+        setImages((prev) => {
+          if (prev.length >= MAX_IMAGES) return prev;
+          return [...prev, rawDataUrl];
+        });
+      };
+      img.src = rawDataUrl;
     };
     reader.readAsDataURL(file);
   };
