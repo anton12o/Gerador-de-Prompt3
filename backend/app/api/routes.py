@@ -22,13 +22,15 @@ async def generate_script(request: GenerateScriptRequest):
     try:
         result = await gemini_service.generate_script(request)
         return result
+    except HTTPException:
+        raise
     except ValueError as ve:
         logger.warning(f"Erro de validação: {ve}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(ve))
     except Exception as e:
         logger.error(f"Erro no processamento: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Erro ao processar roteiro com IA: {str(e)}"
         )
 

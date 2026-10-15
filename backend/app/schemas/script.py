@@ -6,19 +6,53 @@ class ClarificationQuestion(BaseModel):
     question: str = Field(description="Texto da pergunta de esclarecimento diagnóstica")
     options: List[str] = Field(description="Lista de até 3 opções de resposta objetivas (ex: ['1. Foco no caimento...', '2. Foco no tecido...'])")
 
-class SceneItem(BaseModel):
-    scene_number: int = Field(description="Número da cena: 1, 2 ou 3")
-    scene_title: str = Field(description="Título da cena: '1. GANCHO', '2. BENEFÍCIO/USO' ou '3. CTA'")
-    duration: str = Field(description="Duração da cena (ex: '0-3s', '3-8s', '8-10s')")
-    visual_prompt: str = Field(description="Prompt visual em inglês milimetricamente detalhado para Veo3/Dreamina, com movimento de câmera, iluminação e foco no produto")
-    voiceover: str = Field(description="Texto conciso e persuasivo de locução em Português (PT-BR) para retenção e conversão")
+class HookOption(BaseModel):
+    tipo: str = Field(description="Tipo de gancho: 'Dor', 'Curiosidade' ou 'Quebra de Padrão'")
+    fala: str = Field(description="Texto da locução para este gancho em Português (máximo 7 palavras)")
+    acao_visual_0_3s: str = Field(
+        description="Descrição em inglês da ação visual do bloco 0-3s com movimento dinâmico obrigatório (mão pegando o produto, líquido servido, rotação suave, etc.)"
+    )
+    palavras_contadas: Optional[int] = Field(
+        default=None,
+        description="Contagem real de palavras calculada pelo backend"
+    )
 
 class MultipleHooks(BaseModel):
-    dor: str = Field(description="Opção de gancho inicial focada na Dor/Problema que o produto resolve")
-    curiosidade: str = Field(description="Opção de gancho inicial focada em Curiosidade/Segredo/Revelação")
-    quebra_de_padrao: str = Field(description="Opção de gancho inicial com quebra de padrão visual e auditiva extrema")
+    dor: HookOption = Field(description="Opção de gancho inicial focada na Dor/Problema que o produto resolve")
+    curiosidade: HookOption = Field(description="Opção de gancho inicial focada em Curiosidade/Segredo/Revelação")
+    quebra_de_padrao: HookOption = Field(description="Opção de gancho inicial com quebra de padrão visual e auditiva extrema")
 
-class ScriptResult(BaseModel):
+class ScriptPartes(BaseModel):
+    """Partes estruturadas retornadas pelo modelo para montagem determinística do prompt Veo 10s."""
+    descricao_produto: str = Field(
+        description="Descrição física detalhada em inglês do produto (cor, material, textura, acabamentos) ancorada na foto de referência"
+    )
+    descricao_cenario: str = Field(
+        description="Descrição em inglês da bancada/superfície/ambiente limpo mantido ao longo de todo o vídeo"
+    )
+    fala_beneficio: str = Field(
+        description="Texto da locução para o bloco 3-7s em Português (máximo 11 palavras, derivado exclusivamente da descrição do produto)"
+    )
+    bloco_beneficio_visual: str = Field(
+        description="Descrição em inglês da ação visual de demonstração de benefício/uso prático (3-7s) no mesmo cenário"
+    )
+    fala_cta: str = Field(
+        description="Texto da locução para o bloco 7-10s em Português (máximo 5 palavras, chamada de ação direta para o carrinho/link)"
+    )
+    bloco_cta_visual: str = Field(
+        description="Descrição em inglês do Hero Shot em close-up macro e iluminação dramática do produto físico centralizado (7-10s)"
+    )
+
+class ContagemBlocos(BaseModel):
+    gancho: int = Field(default=0, description="Palavras no gancho ativo")
+    beneficio: int = Field(default=0, description="Palavras no benefício")
+    cta: int = Field(default=0, description="Palavras no CTA")
+    dor: int = Field(default=0, description="Palavras no gancho Dor")
+    curiosidade: int = Field(default=0, description="Palavras no gancho Curiosidade")
+    quebra_de_padrao: int = Field(default=0, description="Palavras no gancho Quebra de Padrão")
+
+class ScriptModelOutput(BaseModel):
+    """Schema estrito para o retorno do modelo Gemini (sem dicionários genéricos)."""
     status: Literal["needs_clarification", "completed"] = Field(
         description="Indica se a IA precisa de esclarecimento do usuário ('needs_clarification') ou se entregou o roteiro pronto ('completed')"
     )
@@ -33,25 +67,52 @@ class ScriptResult(BaseModel):
         default=None,
         description="Perguntas de múltipla escolha se o status for 'needs_clarification'"
     )
+    partes: Optional[ScriptPartes] = Field(
+        default=None,
+        description="Partes modulares estruturadas para montagem do prompt Veo de 10s e falas"
+    )
     multiple_hooks: Optional[MultipleHooks] = Field(
         default=None,
-        description="As 3 alternativas de gancho (Dor, Curiosidade, Quebra de Padrão) para a Cena 1"
+        description="As 3 alternativas de gancho (Dor, Curiosidade, Quebra de Padrão) com fala e ação visual 0-3s"
     )
     selected_hook_type: Optional[str] = Field(
-        default=None,
-        description="Qual dos ganchos foi aplicado diretamente na tabela da Cena 1"
-    )
-    scenes: Optional[List[SceneItem]] = Field(
-        default=None,
-        description="Lista ordenada das 3 cenas modulares (Gancho, Uso, CTA)"
-    )
-    internal_checklist: Optional[List[str]] = Field(
-        default=None,
-        description="Checklist interno de validação aprovado pela IA (duração total <= 15s, prompts em inglês, sem alucinações)"
+        default="dor",
+        description="Qual gancho está ativo no prompt ('dor', 'curiosidade' ou 'quebra_de_padrao')"
     )
     refinement_summary: Optional[str] = Field(
         default=None,
         description="Explicação da variável alterada caso este resultado seja fruto de um refinamento"
+    )
+
+class SceneItem(BaseModel):
+    """Modelo legado de cena única (mantido para retrocompatibilidade do histórico)."""
+    scene_number: int = Field(default=1)
+    scene_title: str = Field(default="")
+    duration: str = Field(default="")
+    visual_prompt: str = Field(default="")
+    voiceover: str = Field(default="")
+
+class ScriptResult(ScriptModelOutput):
+    """Resultado final enriquecido retornado pela API para o frontend."""
+    prompt_veo: Optional[str] = Field(
+        default=None,
+        description="Prompt contínuo de 10s para Veo com cabeçalho ancorado, anti-UI unificado e blocos temporais com fala embutida"
+    )
+    locucao_pt: Optional[str] = Field(
+        default=None,
+        description="Texto integral da locução em Português (soma do gancho selecionado + benefício + CTA)"
+    )
+    total_palavras: Optional[int] = Field(
+        default=None,
+        description="Contagem real total de palavras calculada pelo backend (estritamente entre 18 e 23 palavras)"
+    )
+    contagem_blocos: Optional[ContagemBlocos] = Field(
+        default=None,
+        description="Contagens individuais de palavras calculadas pelo backend"
+    )
+    scenes: Optional[List[SceneItem]] = Field(
+        default=None,
+        description="Campo legado mantido opcional para suporte aos registros antigos do histórico"
     )
 
 class GenerateScriptRequest(BaseModel):
