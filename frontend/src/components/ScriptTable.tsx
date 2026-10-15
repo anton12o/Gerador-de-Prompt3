@@ -596,36 +596,54 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
             "{activeLocucaoPt}"
           </div>
 
-          {/* Word and Character counts breakdown (Hybrid Validation) */}
-          <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-800/80 text-xs">
-            <span className="font-semibold text-slate-400">Validação Híbrida:</span>
-            <span
-              className={`px-2.5 py-0.5 rounded-md font-mono font-bold ${
-                totalWords >= 18 && totalWords <= 23 && totalChars <= 150
-                  ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
-                  : 'bg-amber-500/10 border border-amber-500/30 text-amber-300'
-              }`}
-            >
-              Total: {totalWords} palavras • {totalChars}/150 car. {totalWords >= 18 && totalWords <= 23 && totalChars <= 150 ? '✓ (10s calibrado)' : ''}
-            </span>
+          {/* Word and Character counts breakdown per block */}
+          <div className="flex flex-wrap items-center gap-2.5 mt-4 pt-3 border-t border-slate-800/80 text-xs">
+            <span className="font-semibold text-slate-400">Contagens por Bloco:</span>
 
-            {hookWords > 0 && (
-              <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[11px]">
-                Gancho: {hookWords}/7 pal. ({hookChars}/45 car.)
-              </span>
-            )}
+            <div className="px-2.5 py-1 rounded-lg bg-slate-800/90 border border-slate-700/80 font-mono text-[11px] text-slate-300 flex items-center gap-1.5">
+              <span className="text-slate-400">Gancho (0-3s):</span>
+              <strong className={hookWords <= 7 && hookChars <= 45 ? "text-emerald-400" : "text-amber-400"}>
+                {hookWords}/7 pal.
+              </strong>
+              <span className="text-slate-500">•</span>
+              <strong className={hookChars <= 45 ? "text-emerald-400" : "text-amber-400"}>
+                {hookChars}/45 car.
+              </strong>
+            </div>
 
-            {beneficioWords > 0 && (
-              <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[11px]">
-                Benefício: {beneficioWords}/11 pal. ({beneficioChars}/70 car.)
-              </span>
-            )}
+            <div className="px-2.5 py-1 rounded-lg bg-slate-800/90 border border-slate-700/80 font-mono text-[11px] text-slate-300 flex items-center gap-1.5">
+              <span className="text-slate-400">Benefício (3-7s):</span>
+              <strong className={beneficioWords <= 11 && beneficioChars <= 70 ? "text-emerald-400" : "text-amber-400"}>
+                {beneficioWords}/11 pal.
+              </strong>
+              <span className="text-slate-500">•</span>
+              <strong className={beneficioChars <= 70 ? "text-emerald-400" : "text-amber-400"}>
+                {beneficioChars}/70 car.
+              </strong>
+            </div>
 
-            {ctaWords > 0 && (
-              <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[11px]">
-                CTA: {ctaWords}/5 pal. ({ctaChars}/35 car.)
-              </span>
-            )}
+            <div className="px-2.5 py-1 rounded-lg bg-slate-800/90 border border-slate-700/80 font-mono text-[11px] text-slate-300 flex items-center gap-1.5">
+              <span className="text-slate-400">CTA (7-10s):</span>
+              <strong className={ctaWords <= 5 && ctaChars <= 35 ? "text-emerald-400" : "text-amber-400"}>
+                {ctaWords}/5 pal.
+              </strong>
+              <span className="text-slate-500">•</span>
+              <strong className={ctaChars <= 35 ? "text-emerald-400" : "text-amber-400"}>
+                {ctaChars}/35 car.
+              </strong>
+            </div>
+
+            <div className={`px-2.5 py-1 rounded-lg font-mono text-[11px] font-bold flex items-center gap-1.5 ${
+              totalWords >= 18 && totalWords <= 23 && totalChars <= 150
+                ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
+                : 'bg-amber-500/10 border border-amber-500/30 text-amber-300'
+            }`}>
+              <span>Total:</span>
+              <span>{totalWords} pal. (18-23)</span>
+              <span className="text-slate-500">•</span>
+              <span>{totalChars}/150 car.</span>
+              {totalWords >= 18 && totalWords <= 23 && totalChars <= 150 && <span>✓</span>}
+            </div>
 
             <span className="text-slate-500 text-[11px] ml-auto">
               Ritmo: ~2.5 pal/s (~{(totalWords / 2.5).toFixed(1)}s de áudio)

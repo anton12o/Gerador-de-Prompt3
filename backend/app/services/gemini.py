@@ -29,11 +29,30 @@ FALLBACK_MODELS = [
 ]
 
 # ==============================================================================
-# CONSTANTES DE ESQUELETO DO PROMPT VISUAL DO GOOGLE VEO
+# CONSTANTES DE CALIBRAÇÃO DE LOCUÇÃO (HIPÓTESES AJUSTÁVEIS)
+# ==============================================================================
+MAX_WORDS_HOOK = 7
+MAX_WORDS_BENEFIT = 11
+MAX_WORDS_CTA = 5
+MIN_WORDS_TOTAL = 18
+MAX_WORDS_TOTAL = 23
+
+MAX_CHARS_HOOK = 45
+MAX_CHARS_BENEFIT = 70
+MAX_CHARS_CTA = 35
+MAX_CHARS_TOTAL = 150
+
+# Timeout estrito da API Gemini no backend (para abortar antes dos 60s do React)
+GEMINI_TIMEOUT_SECONDS = 50.0
+
+# ==============================================================================
+# ESQUELETO DO PROMPT VISUAL DO GOOGLE VEO (HARDCODED / CHUMBADO)
+# Inclui Anchor Prompts espaciais rígidos contra alucinações físicas
 # ==============================================================================
 VEO_HEADER_TEMPLATE = (
     "Using the provided product photo as reference: {descricao_produto}, placed on {descricao_cenario}. "
     "Clean commercial footage, clean surfaces, plain background, "
+    "all product parts firmly anchored with rigid physical connections and realistic gravity, no floating parts, no morphing structures, "
     "no phone screens, no UI interfaces, no fake app mockups, "
     "no subtitles, no on-screen text, no text, no letters, no words."
 )
@@ -57,10 +76,10 @@ VEO_BLOCK_7_10_TEMPLATE = (
 def montar_prompt_veo(partes: ScriptPartes, gancho_escolhido: HookOption) -> str:
     """
     Monta deterministicamente o prompt contínuo de 10s para o Google Veo:
-    - Cabeçalho: descrição física do produto ancorada na foto + Anti-UI unificado
+    - Cabeçalho: descrição física do produto ancorada na foto + Anti-UI unificado + Anchor Prompts
     - [0-3s]: Ação com movimento dinâmico obrigatório + narração em off em PT-BR
     - [3-7s]: Benefício em ação + narração em off em PT-BR
-    - [7-10s]: Hero shot glorioso macro + CTA em PT-BR
+    - [7-10s]: Hero shot glorioso macro com repetição estrutural das partes + CTA em PT-BR
     - Cada fala com diretiva 'no background music, no other voices'
     """
     cabecalho = VEO_HEADER_TEMPLATE.format(
@@ -90,16 +109,9 @@ def montar_locucao_pt(gancho_fala: str, beneficio_fala: str, cta_fala: str) -> s
 def validar_e_contar_palavras(result: ScriptResult) -> tuple[bool, str, ContagemBlocos]:
     """
     Validação Híbrida (Caracteres + Palavras) para caber em exatos 10s:
-    - Limites de Palavras:
-      * Gancho (Dor, Curiosidade, Quebra de Padrão): <= 7 palavras cada
-      * Benefício: <= 11 palavras
-      * CTA: <= 5 palavras
-      * Total somado: estritamente entre 18 e 23 palavras
-    - Limites Rígidos de Caracteres (com espaços):
-      * Gancho: <= 45 caracteres (em cada uma das 3 opções)
-      * Benefício: <= 70 caracteres
-      * CTA: <= 35 caracteres
-      * Total máximo: <= 150 caracteres
+    - Utiliza constantes calibráveis no topo do arquivo (fáceis de calibrar).
+    - Palavras: Gancho <= MAX_WORDS_HOOK, Benefício <= MAX_WORDS_BENEFIT, CTA <= MAX_WORDS_CTA, Total entre MIN_WORDS_TOTAL e MAX_WORDS_TOTAL.
+    - Caracteres: Gancho <= MAX_CHARS_HOOK, Benefício <= MAX_CHARS_BENEFIT, CTA <= MAX_CHARS_CTA, Total <= MAX_CHARS_TOTAL.
     """
     if not result.partes or not result.multiple_hooks:
         return True, "", ContagemBlocos()
@@ -170,35 +182,35 @@ def validar_e_contar_palavras(result: ScriptResult) -> tuple[bool, str, Contagem
     result.contagem_blocos = contagem_blocos
 
     erros = []
-    # 1. Validação de Palavras
-    if c_dor > 7:
-        erros.append(f"Gancho Dor tem {c_dor} palavras (máx 7)")
-    if c_cur > 7:
-        erros.append(f"Gancho Curiosidade tem {c_cur} palavras (máx 7)")
-    if c_qp > 7:
-        erros.append(f"Gancho Quebra de Padrão tem {c_qp} palavras (máx 7)")
-    if c_ben > 11:
-        erros.append(f"Benefício tem {c_ben} palavras (máx 11)")
-    if c_cta > 5:
-        erros.append(f"CTA tem {c_cta} palavras (máx 5)")
-    if c_total > 23:
-        erros.append(f"Total somado tem {c_total} palavras (máx 23)")
-    elif c_total < 18:
-        erros.append(f"Total somado tem {c_total} palavras (mín 18)")
+    # 1. Validação de Palavras (usando constantes)
+    if c_dor > MAX_WORDS_HOOK:
+        erros.append(f"Gancho Dor tem {c_dor} palavras (máx {MAX_WORDS_HOOK})")
+    if c_cur > MAX_WORDS_HOOK:
+        erros.append(f"Gancho Curiosidade tem {c_cur} palavras (máx {MAX_WORDS_HOOK})")
+    if c_qp > MAX_WORDS_HOOK:
+        erros.append(f"Gancho Quebra de Padrão tem {c_qp} palavras (máx {MAX_WORDS_HOOK})")
+    if c_ben > MAX_WORDS_BENEFIT:
+        erros.append(f"Benefício tem {c_ben} palavras (máx {MAX_WORDS_BENEFIT})")
+    if c_cta > MAX_WORDS_CTA:
+        erros.append(f"CTA tem {c_cta} palavras (máx {MAX_WORDS_CTA})")
+    if c_total > MAX_WORDS_TOTAL:
+        erros.append(f"Total somado tem {c_total} palavras (máx {MAX_WORDS_TOTAL})")
+    elif c_total < MIN_WORDS_TOTAL:
+        erros.append(f"Total somado tem {c_total} palavras (mín {MIN_WORDS_TOTAL})")
 
-    # 2. Validação Rígida de Caracteres (com espaços)
-    if char_dor > 45:
-        erros.append(f"Gancho Dor tem {char_dor} caracteres (máx 45)")
-    if char_cur > 45:
-        erros.append(f"Gancho Curiosidade tem {char_cur} caracteres (máx 45)")
-    if char_qp > 45:
-        erros.append(f"Gancho Quebra de Padrão tem {char_qp} caracteres (máx 45)")
-    if char_ben > 70:
-        erros.append(f"Benefício tem {char_ben} caracteres (máx 70)")
-    if char_cta > 35:
-        erros.append(f"CTA tem {char_cta} caracteres (máx 35)")
-    if char_total > 150:
-        erros.append(f"Total somado tem {char_total} caracteres (máx 150)")
+    # 2. Validação Rígida de Caracteres com espaços (usando constantes)
+    if char_dor > MAX_CHARS_HOOK:
+        erros.append(f"Gancho Dor tem {char_dor} caracteres (máx {MAX_CHARS_HOOK})")
+    if char_cur > MAX_CHARS_HOOK:
+        erros.append(f"Gancho Curiosidade tem {char_cur} caracteres (máx {MAX_CHARS_HOOK})")
+    if char_qp > MAX_CHARS_HOOK:
+        erros.append(f"Gancho Quebra de Padrão tem {char_qp} caracteres (máx {MAX_CHARS_HOOK})")
+    if char_ben > MAX_CHARS_BENEFIT:
+        erros.append(f"Benefício tem {char_ben} caracteres (máx {MAX_CHARS_BENEFIT})")
+    if char_cta > MAX_CHARS_CTA:
+        erros.append(f"CTA tem {char_cta} caracteres (máx {MAX_CHARS_CTA})")
+    if char_total > MAX_CHARS_TOTAL:
+        erros.append(f"Total somado tem {char_total} caracteres (máx {MAX_CHARS_TOTAL})")
 
     if erros:
         return False, "; ".join(erros), contagem_blocos
@@ -210,10 +222,10 @@ class GeminiService:
     def __init__(self):
         if not settings.GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY não foi configurada no arquivo .env.")
-        # Limite cravado de 50 segundos no cliente para abortar antes dos 60s do React
+        # Limite cravado configurado no cliente HTTP para abortar antes dos 60s do frontend
         self.client = genai.Client(
             api_key=settings.GEMINI_API_KEY,
-            http_options=types.HttpOptions(timeout=50000)  # 50s em milissegundos
+            http_options=types.HttpOptions(timeout=int(GEMINI_TIMEOUT_SECONDS * 1000))
         )
         self.model = FALLBACK_MODELS[0]
 
@@ -232,7 +244,7 @@ class GeminiService:
 
     async def generate_script(self, request: GenerateScriptRequest) -> ScriptResult:
         tempo_inicio = asyncio.get_event_loop().time()
-        timeout_maximo_total = 50.0  # Limite rígido de 50s no backend
+        timeout_maximo_total = GEMINI_TIMEOUT_SECONDS
 
         contents: List[Any] = []
 
@@ -278,7 +290,8 @@ class GeminiService:
                 "INSTRUÇÕES DE REFINAMENTO:\n"
                 "- Identifique com precisão qual variável estratégica você está alterando (ex: gancho de Dor para Curiosidade, ênfase em textura, ritmo).\n"
                 "- Preencha o campo `refinement_summary` explicando o que foi alterado e por quê.\n"
-                "- Retorne `status: 'completed'` com as partes estruturadas e as 3 variantes de gancho respeitando rigorosamente a contagem de palavras (7/11/5, total 18-23) e caracteres (45/70/35, total <= 150).\n"
+                f"- Retorne `status: 'completed'` com as partes estruturadas e as 3 variantes de gancho respeitando rigorosamente a contagem de palavras ({MAX_WORDS_HOOK}/{MAX_WORDS_BENEFIT}/{MAX_WORDS_CTA}, total {MIN_WORDS_TOTAL}-{MAX_WORDS_TOTAL}) e caracteres ({MAX_CHARS_HOOK}/{MAX_CHARS_BENEFIT}/{MAX_CHARS_CTA}, total <= {MAX_CHARS_TOTAL}).\n"
+                "- Mantenha Anchor Prompts espaciais rígidos em todas as partes e repita a ancoragem estrutural no bloco_cta_visual.\n"
             )
 
         # Follow-up with clarification answers
@@ -297,7 +310,7 @@ class GeminiService:
             prompt_parts.append("MODO DE OPERAÇÃO: GERAÇÃO DIRETA FORÇADA")
             prompt_parts.append(
                 "O usuário solicitou geração direta sem perguntas adicionais.\n"
-                "Defina o ângulo de venda mais promissor e retorne `status: 'completed'` com todas as partes estruturadas e as 3 opções de gancho respeitando os limites de palavras e caracteres."
+                "Defina o ângulo de venda mais promissor e retorne `status: 'completed'` com todas as partes estruturadas e as 3 opções de gancho respeitando os limites de palavras, caracteres e ancoragem espacial."
             )
 
         # First turn: Ambiguity filter active
@@ -314,12 +327,14 @@ class GeminiService:
             )
 
         prompt_parts.append(
-            "\nREGRAS CRÍTICAS DE VALIDAÇÃO (NÃO VIOLE ESTES LIMITES):\n"
-            "- Gancho (0-3s): máximo 7 palavras e até 45 caracteres em cada uma das 3 opções de gancho.\n"
-            "- Benefício (3-7s): máximo 11 palavras e até 70 caracteres baseados somente no anúncio.\n"
-            "- CTA (7-10s): máximo 5 palavras e até 35 caracteres.\n"
-            "- Total somado: estritamente entre 18 e 23 palavras e MÁXIMO 150 caracteres com espaços.\n"
+            "\nREGRAS CRÍTICAS DE VALIDAÇÃO E ANCORAGEM FÍSICA (NÃO VIOLE ESTES LIMITES):\n"
+            f"- Gancho (0-3s): máximo {MAX_WORDS_HOOK} palavras e até {MAX_CHARS_HOOK} caracteres em cada uma das 3 opções de gancho.\n"
+            f"- Benefício (3-7s): máximo {MAX_WORDS_BENEFIT} palavras e até {MAX_CHARS_BENEFIT} caracteres baseados somente no anúncio.\n"
+            f"- CTA (7-10s): máximo {MAX_WORDS_CTA} palavras e até {MAX_CHARS_CTA} caracteres.\n"
+            f"- Total somado: estritamente entre {MIN_WORDS_TOTAL} e {MAX_WORDS_TOTAL} palavras e MÁXIMO {MAX_CHARS_TOTAL} caracteres com espaços.\n"
             "- Bloco 0-3s: movimento dinâmico obrigatório (proibido produto parado).\n"
+            "- ANCHOR PROMPTS ESPACIAIS: Descreva as partes do produto sempre com coordenadas físicas rígidas (ex: 'metal blades firmly anchored to the bottom motor base', 'curved handle securely fixed to the lateral body').\n"
+            "- REPETIÇÃO DE ANCORAGEM NA CENA 3: No bloco_cta_visual (7-10s), você DEVE OBRIGATORIAMENTE REPETIR essa mesma ancoragem física estrutural das partes para garantir que nada flutue ou se desconecte no corte final.\n"
         )
 
         contents.append("\n".join(prompt_parts))
@@ -338,10 +353,10 @@ class GeminiService:
             tempo_restante = timeout_maximo_total - tempo_decorrido
 
             if tempo_restante <= 1.0:
-                logger.error("Tempo limite de 50s atingido no backend antes de concluir chamadas aos modelos.")
+                logger.error(f"Tempo limite de {timeout_maximo_total}s atingido no backend antes de concluir chamadas aos modelos.")
                 raise HTTPException(
                     status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                    detail="Tempo limite de 50 segundos esgotado no backend ao tentar gerar com a IA."
+                    detail=f"Tempo limite de {int(timeout_maximo_total)} segundos esgotado no backend ao tentar gerar com a IA."
                 )
 
             try:
@@ -379,12 +394,17 @@ class GeminiService:
                         if tempo_restante_retry <= 2.0:
                             raise HTTPException(
                                 status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                                detail="Tempo limite de 50 segundos esgotado no backend antes de executar retry de encurtamento."
+                                detail=f"Tempo limite de {int(timeout_maximo_total)} segundos esgotado no backend antes de executar retry de encurtamento."
                             )
 
                         retry_contents = list(contents) + [
-                            f"CORREÇÃO OBRIGATÓRIA (PALAVRAS E CARACTERES): O roteiro anterior violou os limites estritos para caber em 10s: {erro_validacao}. "
-                            f"REESCREVA o JSON imediatamente encurtando as falas. Regras obrigatórias: cada gancho <= 7 palavras e <= 45 caracteres, benefício <= 11 palavras e <= 70 caracteres, CTA <= 5 palavras e <= 35 caracteres, total somado entre 18 e 23 palavras e <= 150 caracteres."
+                            f"CORREÇÃO OBRIGATÓRIA (PALAVRAS, CARACTERES E ANCORAGEM): O roteiro anterior violou as regras: {erro_validacao}. "
+                            f"REESCREVA o JSON imediatamente encurtando as falas e garantindo ancoragem física rígida. "
+                            f"Regras obrigatórias: cada gancho <= {MAX_WORDS_HOOK} palavras e <= {MAX_CHARS_HOOK} caracteres, "
+                            f"benefício <= {MAX_WORDS_BENEFIT} palavras e <= {MAX_CHARS_BENEFIT} caracteres, "
+                            f"CTA <= {MAX_WORDS_CTA} palavras e <= {MAX_CHARS_CTA} caracteres, "
+                            f"total somado entre {MIN_WORDS_TOTAL} e {MAX_WORDS_TOTAL} palavras e <= {MAX_CHARS_TOTAL} caracteres, "
+                            f"e bloco_cta_visual repetindo a ancoragem física das peças."
                         ]
                         retry_response = await asyncio.wait_for(
                             self.client.aio.models.generate_content(
@@ -424,10 +444,10 @@ class GeminiService:
                     return result
 
             except asyncio.TimeoutError:
-                logger.error(f"Timeout de chamada com modelo {model_candidate} (limite global 50s atingido).")
+                logger.error(f"Timeout de chamada com modelo {model_candidate} (limite global {timeout_maximo_total}s atingido).")
                 raise HTTPException(
                     status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                    detail="A chamada à API de IA excedeu o tempo limite cravado de 50 segundos no backend."
+                    detail=f"A chamada à API de IA excedeu o tempo limite cravado de {int(timeout_maximo_total)} segundos no backend."
                 )
             except HTTPException:
                 raise

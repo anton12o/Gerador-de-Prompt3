@@ -29,22 +29,22 @@ class MultipleHooks(BaseModel):
 class ScriptPartes(BaseModel):
     """Partes estruturadas retornadas pelo modelo para montagem determinística do prompt Veo 10s."""
     descricao_produto: str = Field(
-        description="Descrição física detalhada em inglês do produto (cor, material, textura, acabamentos) ancorada na foto de referência"
+        description="Descrição física detalhada em inglês do produto (cor, material, textura, acabamentos) ancorada na foto de referência com Anchor Prompts espaciais rígidos (ex: blades firmly anchored to motor base, handle securely fixed to body)"
     )
     descricao_cenario: str = Field(
         description="Descrição em inglês da bancada/superfície/ambiente limpo mantido ao longo de todo o vídeo"
     )
     fala_beneficio: str = Field(
-        description="Texto da locução para o bloco 3-7s em Português (máximo 11 palavras, derivado exclusivamente da descrição do produto)"
+        description="Texto da locução para o bloco 3-7s em Português (máximo 11 palavras e até 70 caracteres, derivado exclusivamente da descrição do produto)"
     )
     bloco_beneficio_visual: str = Field(
-        description="Descrição em inglês da ação visual de demonstração de benefício/uso prático (3-7s) no mesmo cenário"
+        description="Descrição em inglês da ação visual de demonstração de benefício/uso prático (3-7s) no mesmo cenário com integridade das partes"
     )
     fala_cta: str = Field(
-        description="Texto da locução para o bloco 7-10s em Português (máximo 5 palavras, chamada de ação direta para o carrinho/link)"
+        description="Texto da locução para o bloco 7-10s em Português (máximo 5 palavras e até 35 caracteres, chamada de ação direta para o carrinho/link)"
     )
     bloco_cta_visual: str = Field(
-        description="Descrição em inglês do Hero Shot em close-up macro e iluminação dramática do produto físico centralizado (7-10s)"
+        description="Descrição em inglês do Hero Shot (7-10s) que OBRIGATORIAMENTE REPETE a ancoragem física das partes do produto (ex: blades anchored to base, handle fixed to body) para evitar peças flutuando no corte final"
     )
 
 class ContagemBlocos(BaseModel):
