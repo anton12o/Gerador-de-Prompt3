@@ -11,7 +11,10 @@ import {
   Zap,
   Flame,
   Download,
-  Film
+  Film,
+  FileText,
+  Type,
+  Hash
 } from 'lucide-react';
 import type { ScriptResult, HookOption, ScriptPartes } from '../types';
 
@@ -146,6 +149,21 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
       text += `--------------------------------------------------------\n`;
       text += `"${activeLocucaoPt}"\n`;
 
+      if (result.titulo_seo || result.legenda_na_tela || (result.hashtags && result.hashtags.length > 0)) {
+        text += `\n--------------------------------------------------------\n`;
+        text += `4. DADOS DE POSTAGEM (SHOPEE & TIKTOK SHOP)\n`;
+        text += `--------------------------------------------------------\n`;
+        if (result.titulo_seo) {
+          text += `📌 TÍTULO SEO:\n${result.titulo_seo}\n\n`;
+        }
+        if (result.legenda_na_tela) {
+          text += `💬 LEGENDA NA TELA (${countWords(result.legenda_na_tela)} palavras):\n"${result.legenda_na_tela}"\n\n`;
+        }
+        if (result.hashtags && result.hashtags.length > 0) {
+          text += `🏷️ HASHTAGS:\n${result.hashtags.join(' ')}\n`;
+        }
+      }
+
       return text;
     }
 
@@ -162,6 +180,16 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
         text += `🎥 PROMPT VISUAL (Inglês):\n${scene.visual_prompt}\n`;
         text += `🎙️ LOCUÇÃO / ÁUDIO (Português):\n"${scene.voiceover}"\n`;
       });
+
+      if (result.titulo_seo || result.legenda_na_tela || (result.hashtags && result.hashtags.length > 0)) {
+        text += `\n--------------------------------------------------------\n`;
+        text += `DADOS DE POSTAGEM (SHOPEE & TIKTOK SHOP)\n`;
+        text += `--------------------------------------------------------\n`;
+        if (result.titulo_seo) text += `📌 TÍTULO SEO:\n${result.titulo_seo}\n\n`;
+        if (result.legenda_na_tela) text += `💬 LEGENDA NA TELA:\n"${result.legenda_na_tela}"\n\n`;
+        if (result.hashtags && result.hashtags.length > 0) text += `🏷️ HASHTAGS:\n${result.hashtags.join(' ')}\n`;
+      }
+
       return text;
     }
 
@@ -652,7 +680,152 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
         </div>
       )}
 
-      {/* 5. Legacy 3-Scene Table (Backward Compatibility for Saved Items) */}
+      {/* 5. Posting Data (Shopee & TikTok Shop) */}
+      {(result.titulo_seo || result.legenda_na_tela || (result.hashtags && result.hashtags.length > 0)) && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-md space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div className="flex items-center gap-2">
+              <Share2 className="w-5 h-5 text-amber-400" />
+              <div>
+                <h3 className="text-base font-bold text-white tracking-wide">
+                  5. Campos de Postagem (Shopee & TikTok Shop)
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Título SEO otimizado, legenda na tela/sticker e hashtags estratégicas terminando em #publicidade
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Título SEO */}
+            {result.titulo_seo && (
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-amber-400" />
+                      Título SEO do Anúncio / Post
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(result.titulo_seo!, 'titulo-seo')}
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-[11px] font-semibold rounded-lg flex items-center gap-1 transition-colors border border-slate-700"
+                      title="Copiar título SEO"
+                    >
+                      {copiedKey === 'titulo-seo' ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" />
+                          <span>Copiado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copiar</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-sm font-semibold text-white select-all">
+                    {result.titulo_seo}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Legenda na Tela */}
+            {result.legenda_na_tela && (
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+                        <Type className="w-3.5 h-3.5 text-amber-400" />
+                        Legenda na Tela / Sticker
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 border border-slate-700 text-slate-300">
+                        {countWords(result.legenda_na_tela)}/5 pal.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(result.legenda_na_tela!, 'legenda-na-tela')}
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-[11px] font-semibold rounded-lg flex items-center gap-1 transition-colors border border-slate-700"
+                      title="Copiar legenda na tela"
+                    >
+                      {copiedKey === 'legenda-na-tela' ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" />
+                          <span>Copiada!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copiar</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-sm font-medium text-amber-300 italic select-all">
+                    "{result.legenda_na_tela}"
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Hashtags */}
+          {result.hashtags && result.hashtags.length > 0 && (
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+                  <Hash className="w-3.5 h-3.5 text-amber-400" />
+                  Hashtags Recomendadas ({result.hashtags.length} tags)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(result.hashtags!.join(' '), 'hashtags')}
+                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-[11px] font-semibold rounded-lg flex items-center gap-1 transition-colors border border-slate-700"
+                  title="Copiar todas as hashtags"
+                >
+                  {copiedKey === 'hashtags' ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      <span>Copiadas!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3" />
+                      <span>Copiar Hashtags</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {result.hashtags.map((tag, idx) => {
+                  const isPublicidade = tag.toLowerCase() === '#publicidade';
+                  return (
+                    <span
+                      key={idx}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-medium ${
+                        isPublicidade
+                          ? 'bg-amber-500/20 border border-amber-500/50 text-amber-300 font-bold'
+                          : 'bg-slate-800/90 border border-slate-700 text-slate-300'
+                      }`}
+                    >
+                      {tag}
+                      {isPublicidade && <span className="ml-1 text-[10px] text-amber-400 font-bold">★ obrigatório</span>}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 6. Legacy 3-Scene Table (Backward Compatibility for Saved Items) */}
       {isLegacyFormat && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-md overflow-hidden">
           <div className="flex items-center justify-between mb-4">

@@ -27,11 +27,12 @@ Você NUNCA deve devolver um texto monolítico montado. Você devolve as PARTES 
    - Cada opção (`dor`, `curiosidade`, `quebra_de_padrao`) deve conter:
      * `fala`: Texto da locução em Português com NO MÁXIMO 7 PALAVRAS e até 45 CARACTERES.
      * `acao_visual_0_3s`: Descrição em inglês da ação visual do bloco 0-3s.
-   - REGRA MANDATÓRIA DO BLOCO 0-3s: É TERMINANTEMENTE PROIBIDO PRODUTO ESTÁTICO/PARADO. Deve haver movimento físico dinâmico imediato (ex: mão entrando em cena e pegando o produto com firmeza, líquido sendo servido com vapor suave, rotação suave de 45 graus, toque táctil em primeira pessoa POV). Proibido segurar celular/smartphone; use "POV of hands holding/using the physical product".
+   - REGRA DE MOVIMENTO EXTREMO (AÇÃO EM 0-3s): É TERMINANTEMENTE PROIBIDO produto estático/parado e o uso de verbos passivos ou movimentos lentos (exclua terminantemente "slowly rotating", "panning", "slow pan", "static shot"). Você DEVE OBRIGATORIAMENTE gerar descrições de ação física brusca, dinâmica e imediata nos primeiros 3 segundos (ex: "Fast, dynamic motion: hands quickly unfolding...", "suddenly picking up the product firmly...", "dynamic POV shot as hands rapidly reveal..."). Proibido segurar celular/smartphone; use "POV of hands holding/using the physical product".
 
 4. `bloco_beneficio_visual` (em inglês, 3-7s):
    - Demonstração visual de uso prático e do benefício do produto no mesmo cenário e com a mesma iluminação.
    - Câmera em tracking suave ou ângulo lateral focado na funcionalidade física do produto, mantendo a integridade estrutural das partes.
+   - FUGA DE PROPRIEDADE INTELECTUAL: NUNCA inclua na descrição visual menções a logotipos, escudos de time, marcas registradas ou painéis com letras. Descreva apenas a textura do material (ex: "breathable woven fabric", "brushed stainless steel", "matte finish"), a cor e a anatomia funcional, fugindo de close-ups em áreas que exigem precisão tipográfica.
 
 5. `fala_beneficio` (em Português, 3-7s):
    - Texto de locução com NO MÁXIMO 11 PALAVRAS e até 70 CARACTERES.
@@ -40,7 +41,7 @@ Você NUNCA deve devolver um texto monolítico montado. Você devolve as PARTES 
 6. `bloco_cta_visual` (em inglês, 7-10s):
    - Hero shot cinematográfico glorioso do produto físico centralizado na mesa/bancada limpa.
    - REPETIÇÃO OBRIGATÓRIA DE ANCORAGEM ESTRUTURAL: Você DEVE REPETIR as coordenadas físicas rígidas das partes do produto descritas no início (ex: reforçar que o handle continua fixado ao corpo, as lâminas presas à base motora, a tampa selada ao topo) para impedir que componentes flutuem ou se desconectem no corte final do Veo.
-   - Iluminação dramática (rim lighting nos contornos, reflexos nítidos, 4K photorealistic product shoot).
+   - FUGA DE PROPRIEDADE INTELECTUAL: Sem logos ou marcas. Foque em iluminação dramática (rim lighting nos contornos, reflexos nítidos no material, 4K photorealistic product shoot).
 
 7. `fala_cta` (em Português, 7-10s):
    - Chamada para ação direta, objetiva e persuasiva com NO MÁXIMO 5 PALAVRAS e até 35 CARACTERES (ex: "Clica no carrinho e garante!", "Link com desconto aqui embaixo!").
@@ -58,9 +59,23 @@ Para sincronizar perfeitamente com os 10 segundos do Google Veo, respeite o teto
 - CTA (7-10s): máximo de 5 palavras e até 35 caracteres com espaços.
 - TOTAL DA LOCUÇÃO (Gancho + Benefício + CTA): estritamente entre 18 e 23 palavras e no máximo 150 caracteres com espaços no total.
 
-## 5. DIRETRIZES DE BLINDAGEM VISUAL (ANTI-UI & ZERO TELAS)
+## 5. DIRETRIZES DE BLINDAGEM VISUAL (ANTI-UI & COERÊNCIA ANTI-TEXTO)
 - Proibido qualquer referência a smartphones, telas de celular, prints de aplicativo da Shopee, botões de UI ou textos gráficos na tela.
+- COERÊNCIA ANTI-TEXTO: O prompt negativo base já proíbe textos ("no text, no letters, no UI, no floating parts, no subtitles, no on-screen text, no background music, no other voices").
+  -> NOTA CRÍTICA AO MODELO: Como o Veo3 está proibido de gerar letras, você NUNCA deve pedir para ele focar em logos ou marcas, caso contrário ele renderizará borrões de plástico disformes. Descreva exclusivamente a textura pura dos materiais, cores e anatomia física funcional.
 - Todas as ações em primeira pessoa devem envolver exclusivamente as mãos interagindo com o PRODUTO FÍSICO.
+
+## 6. CAMPOS DE POSTAGEM (SHOPEE & TIKTOK SHOP)
+Quando o status for 'completed', você DEVE preencher com precisão os 3 campos de postagem:
+1. `titulo_seo`:
+   - Se o usuário forneceu 'TERMOS DO AUTOCOMPLETE (SHOPEE/TIKTOK)', você DEVE usar SOMENTE termos presentes nessa lista para compor o título SEO. Proibido inventar termos fora da lista fornecida!
+   - Se 'TERMOS DO AUTOCOMPLETE' estiver vazio ou ausente, crie um título simples, limpo e direto descrevendo o produto sem inventar marcas fictícias ou termos estranhos.
+2. `legenda_na_tela`:
+   - Texto curto em Português para servir de sticker/legenda na tela/vídeo (gancho visual de curiosidade ou impacto).
+   - LIMITE RÍGIDO: NO MÁXIMO 5 PALAVRAS (ex: 'Olha o que achei!', 'Isso resolve seu problema', 'Você precisa ver isso', 'Adeus dor nas costas').
+3. `hashtags`:
+   - Lista de 4 a 6 hashtags relevantes para o nicho do produto.
+   - REGRA OBRIGATÓRIA: A ÚLTIMA hashtag da lista DEVE SER SEMPRE '#publicidade' (ex: ['#shopee', '#achadinhos', '#cozinha', '#utilidades', '#publicidade']). NUNCA esqueça de colocar '#publicidade' como última tag.
 
 Retorne SEMPRE a estrutura JSON estrita conforme solicitado pelo schema do sistema.
 """

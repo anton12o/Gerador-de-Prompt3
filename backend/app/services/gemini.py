@@ -212,6 +212,24 @@ def validar_e_contar_palavras(result: ScriptResult) -> tuple[bool, str, Contagem
     if char_total > MAX_CHARS_TOTAL:
         erros.append(f"Total somado tem {char_total} caracteres (máx {MAX_CHARS_TOTAL})")
 
+    # 3. Validação dos Campos de Postagem (quando status for 'completed' ou houver partes)
+    if result.status == "completed" or result.partes is not None:
+        if result.legenda_na_tela:
+            palavras_legenda = len(result.legenda_na_tela.strip().split())
+            if palavras_legenda > 5:
+                erros.append(f"Legenda na tela tem {palavras_legenda} palavras (máximo 5 palavras)")
+        else:
+            erros.append("Campo legenda_na_tela é obrigatório e deve ter no máximo 5 palavras")
+
+        if result.hashtags and len(result.hashtags) > 0:
+            ultima_tag = result.hashtags[-1].strip().lower()
+            if ultima_tag != "#publicidade":
+                erros.append(f"A última hashtag deve ser obrigatoriamente '#publicidade', mas foi '{result.hashtags[-1]}'")
+            else:
+                result.hashtags[-1] = "#publicidade"
+        else:
+            erros.append("Campo hashtags é obrigatório e deve terminar com '#publicidade'")
+
     if erros:
         return False, "; ".join(erros), contagem_blocos
 
@@ -280,6 +298,12 @@ class GeminiService:
         if request.context:
             prompt_parts.append(f"CONTEXTO DO PRODUTO / LINK / NOTA DO USUÁRIO:\n{request.context.strip()}\n")
 
+        if request.termos_autocomplete and request.termos_autocomplete.strip():
+            prompt_parts.append(
+                f"TERMOS DO AUTOCOMPLETE (SHOPEE/TIKTOK):\n{request.termos_autocomplete.strip()}\n"
+                "(Use ESTRITAMENTE e SOMENTE termos presentes nesta lista para compor o titulo_seo!)\n"
+            )
+
         # Refinement turn
         if request.refinement_instruction:
             prompt_parts.append("MODO DE OPERAÇÃO: REFINAMENTO ITERATIVO")
@@ -291,7 +315,8 @@ class GeminiService:
                 "- Identifique com precisão qual variável estratégica você está alterando (ex: gancho de Dor para Curiosidade, ênfase em textura, ritmo).\n"
                 "- Preencha o campo `refinement_summary` explicando o que foi alterado e por quê.\n"
                 f"- Retorne `status: 'completed'` com as partes estruturadas e as 3 variantes de gancho respeitando rigorosamente a contagem de palavras ({MAX_WORDS_HOOK}/{MAX_WORDS_BENEFIT}/{MAX_WORDS_CTA}, total {MIN_WORDS_TOTAL}-{MAX_WORDS_TOTAL}) e caracteres ({MAX_CHARS_HOOK}/{MAX_CHARS_BENEFIT}/{MAX_CHARS_CTA}, total <= {MAX_CHARS_TOTAL}).\n"
-                "- Mantenha Anchor Prompts espaciais rígidos em todas as partes e repita a ancoragem estrutural no bloco_cta_visual.\n"
+                "- Mantenha Anchor Prompts espaciais rígidos em todas as partes e repita a ancoragem estrutural no bloco_cta_visual sem logos.\n"
+                "- Mantenha ou atualize titulo_seo, legenda_na_tela (máx 5 palavras) e hashtags (terminando com #publicidade).\n"
             )
 
         # Follow-up with clarification answers
@@ -302,7 +327,7 @@ class GeminiService:
                 f"RESPOSTAS DO USUÁRIO:\n{answers_text}\n\n"
                 "INSTRUÇÃO:\n"
                 "O usuário já definiu o diferencial do produto. PARE de fazer perguntas de esclarecimento.\n"
-                "Gere o roteiro completo no estado `status: 'completed'` preenchendo o diagnóstico, as `partes` estruturadas e as 3 opções de `multiple_hooks`."
+                "Gere o roteiro completo no estado `status: 'completed'` preenchendo o diagnóstico, as `partes` estruturadas, as 3 opções de `multiple_hooks` e os campos de postagem (titulo_seo, legenda_na_tela <= 5 palavras, hashtags com #publicidade no final)."
             )
 
         # Force generation mode
@@ -310,7 +335,7 @@ class GeminiService:
             prompt_parts.append("MODO DE OPERAÇÃO: GERAÇÃO DIRETA FORÇADA")
             prompt_parts.append(
                 "O usuário solicitou geração direta sem perguntas adicionais.\n"
-                "Defina o ângulo de venda mais promissor e retorne `status: 'completed'` com todas as partes estruturadas e as 3 opções de gancho respeitando os limites de palavras, caracteres e ancoragem espacial."
+                "Defina o ângulo de venda mais promissor e retorne `status: 'completed'` com todas as partes estruturadas, as 3 opções de gancho e os campos de postagem (titulo_seo, legenda_na_tela <= 5 palavras, hashtags com #publicidade no final) respeitando os limites de palavras, caracteres e ancoragem espacial."
             )
 
         # First turn: Ambiguity filter active
@@ -323,18 +348,20 @@ class GeminiService:
                 "   -> Crie de 1 a 2 perguntas de múltipla escolha com 3 alternativas claras cada.\n"
                 "   -> Deixe os campos `partes` e `multiple_hooks` como null.\n\n"
                 "2. Se a imagem e o contexto já forem claros e específicos:\n"
-                "   -> Avance para `status: 'completed'` preenchendo as `partes` e os `multiple_hooks`."
+                "   -> Avance para `status: 'completed'` preenchendo as `partes`, os `multiple_hooks` e os campos de postagem."
             )
 
         prompt_parts.append(
-            "\nREGRAS CRÍTICAS DE VALIDAÇÃO E ANCORAGEM FÍSICA (NÃO VIOLE ESTES LIMITES):\n"
+            "\nREGRAS CRÍTICAS DE VALIDAÇÃO, ANCORAGEM FÍSICA E POSTAGEM (NÃO VIOLE ESTES LIMITES):\n"
             f"- Gancho (0-3s): máximo {MAX_WORDS_HOOK} palavras e até {MAX_CHARS_HOOK} caracteres em cada uma das 3 opções de gancho.\n"
             f"- Benefício (3-7s): máximo {MAX_WORDS_BENEFIT} palavras e até {MAX_CHARS_BENEFIT} caracteres baseados somente no anúncio.\n"
             f"- CTA (7-10s): máximo {MAX_WORDS_CTA} palavras e até {MAX_CHARS_CTA} caracteres.\n"
             f"- Total somado: estritamente entre {MIN_WORDS_TOTAL} e {MAX_WORDS_TOTAL} palavras e MÁXIMO {MAX_CHARS_TOTAL} caracteres com espaços.\n"
-            "- Bloco 0-3s: movimento dinâmico obrigatório (proibido produto parado).\n"
+            "- REGRA DE MOVIMENTO EXTREMO (0-3s): Proibido produto parado ou verbos lentos ('slowly rotating', 'panning', 'static shot'). Exija ação física imediata e dinâmica ('Fast, dynamic motion', 'hands quickly unfolding', 'suddenly picking up').\n"
+            "- FUGA DE PROPRIEDADE INTELECTUAL: NUNCA mencione logos, marcas ou letras na descrição visual. Descreva apenas texturas ('breathable woven fabric'), cores e anatomia funcional. Como o Veo3 não pode gerar letras, pedir foco em logos causa borrões plásticos.\n"
             "- ANCHOR PROMPTS ESPACIAIS: Descreva as partes do produto sempre com coordenadas físicas rígidas (ex: 'metal blades firmly anchored to the bottom motor base', 'curved handle securely fixed to the lateral body').\n"
             "- REPETIÇÃO DE ANCORAGEM NA CENA 3: No bloco_cta_visual (7-10s), você DEVE OBRIGATORIAMENTE REPETIR essa mesma ancoragem física estrutural das partes para garantir que nada flutue ou se desconecte no corte final.\n"
+            "- CAMPOS DE POSTAGEM: titulo_seo (usar SOMENTE termos de autocomplete se fornecido), legenda_na_tela (MÁXIMO 5 PALAVRAS), hashtags (lista terminando OBRIGATORIAMENTE com '#publicidade').\n"
         )
 
         contents.append("\n".join(prompt_parts))
@@ -398,13 +425,14 @@ class GeminiService:
                             )
 
                         retry_contents = list(contents) + [
-                            f"CORREÇÃO OBRIGATÓRIA (PALAVRAS, CARACTERES E ANCORAGEM): O roteiro anterior violou as regras: {erro_validacao}. "
-                            f"REESCREVA o JSON imediatamente encurtando as falas e garantindo ancoragem física rígida. "
+                            f"CORREÇÃO OBRIGATÓRIA (LOCUÇÃO, ANCORAGEM E POSTAGEM): O roteiro anterior violou as seguintes regras: {erro_validacao}. "
+                            f"REESCREVA o JSON imediatamente corrigindo todos os pontos apontados. "
                             f"Regras obrigatórias: cada gancho <= {MAX_WORDS_HOOK} palavras e <= {MAX_CHARS_HOOK} caracteres, "
                             f"benefício <= {MAX_WORDS_BENEFIT} palavras e <= {MAX_CHARS_BENEFIT} caracteres, "
                             f"CTA <= {MAX_WORDS_CTA} palavras e <= {MAX_CHARS_CTA} caracteres, "
                             f"total somado entre {MIN_WORDS_TOTAL} e {MAX_WORDS_TOTAL} palavras e <= {MAX_CHARS_TOTAL} caracteres, "
-                            f"e bloco_cta_visual repetindo a ancoragem física das peças."
+                            f"bloco_cta_visual repetindo a ancoragem física das peças sem logos, "
+                            f"legenda_na_tela com no MÁXIMO 5 palavras, e a última hashtag da lista sendo rigorosamente '#publicidade'."
                         ]
                         retry_response = await asyncio.wait_for(
                             self.client.aio.models.generate_content(
@@ -423,10 +451,10 @@ class GeminiService:
                             if valido_retry:
                                 result = retry_result
                             else:
-                                logger.error(f"Retry de validação híbrida falhou: {erro_retry}")
+                                logger.error(f"Retry de validação falhou: {erro_retry}")
                                 raise HTTPException(
                                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                    detail=f"A locução gerada excedeu os limites de cadência/caracteres para 10s mesmo após tentativa de encurtamento: {erro_retry}."
+                                    detail=f"A resposta gerada violou as regras de validação (cadência ou postagem) mesmo após tentativa de correção: {erro_retry}."
                                 )
 
                     # Montar prompt_veo e locucao_pt deterministicamente por código

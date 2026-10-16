@@ -67,6 +67,9 @@ export interface ScriptResult {
   modelo_utilizado?: string;
   scenes?: SceneItem[]; // Suporte a registros legados
   refinement_summary?: string;
+  titulo_seo?: string;
+  legenda_na_tela?: string;
+  hashtags?: string[];
 }
 
 export interface GenerateScriptPayload {
@@ -74,6 +77,7 @@ export interface GenerateScriptPayload {
   images_base64?: string[];
   image_mime_type?: string;
   context?: string;
+  termos_autocomplete?: string;
   style_preset?: 'ugc_realista' | 'cinematic_studio' | 'macro_produto';
   video_engine?: 'veo3' | 'dreamina' | 'kling' | 'luma';
   force_generation?: boolean;

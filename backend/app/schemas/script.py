@@ -94,6 +94,18 @@ class ScriptModelOutput(BaseModel):
         default=None,
         description="Explicação da variável alterada caso este resultado seja fruto de um refinamento"
     )
+    titulo_seo: Optional[str] = Field(
+        default=None,
+        description="Título SEO otimizado para postagem na Shopee/TikTok. Se termos_autocomplete foi fornecido, usa SOMENTE termos dele; se vazio, título simples sem inventar termos."
+    )
+    legenda_na_tela: Optional[str] = Field(
+        default=None,
+        description="Texto em português da legenda/gancho visual para sticker na tela (máximo 5 palavras)."
+    )
+    hashtags: Optional[List[str]] = Field(
+        default=None,
+        description="Lista de hashtags para o nicho, onde o último item deve ser OBRIGATORIAMENTE '#publicidade'."
+    )
 
 class SceneItem(BaseModel):
     """Modelo legado de cena única (mantido para retrocompatibilidade do histórico)."""
@@ -145,3 +157,4 @@ class GenerateScriptRequest(BaseModel):
     clarification_answers: Optional[Dict[str, str]] = Field(default=None, description="Respostas às perguntas de esclarecimento")
     previous_response: Optional[Dict[str, Any]] = Field(default=None, description="Script anterior gerado para permitir refinamento iterativo")
     refinement_instruction: Optional[str] = Field(default=None, description="Comando de refinamento (ex: 'mude o gancho para curiosidade')")
+    termos_autocomplete: Optional[str] = Field(default=None, description="Termos de busca do autocomplete da Shopee/TikTok colados pelo usuário")

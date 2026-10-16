@@ -23,6 +23,7 @@ export function App() {
   const [currentImagesBase64, setCurrentImagesBase64] = useState<string[]>([]);
   const [currentMimeType, setCurrentMimeType] = useState<string | undefined>();
   const [currentContext, setCurrentContext] = useState<string>('');
+  const [currentTermosAutocomplete, setCurrentTermosAutocomplete] = useState<string>('');
   const [scriptResult, setScriptResult] = useState<ScriptResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -89,7 +90,8 @@ export function App() {
     imagesBase64: string[],
     mimeType?: string,
     context?: string,
-    force: boolean = false
+    force: boolean = false,
+    termosAutocomplete?: string
   ) => {
     if (isBackendHealthy === false) {
       setErrorMessage(
@@ -103,12 +105,14 @@ export function App() {
     setCurrentImagesBase64(imagesBase64);
     setCurrentMimeType(mimeType);
     setCurrentContext(context || '');
+    setCurrentTermosAutocomplete(termosAutocomplete || '');
 
     try {
       const result = await generateScriptApi({
         images_base64: imagesBase64,
         image_mime_type: mimeType,
         context: context,
+        termos_autocomplete: termosAutocomplete,
         style_preset: 'ugc_realista',
         video_engine: 'veo3',
         force_generation: force,
@@ -134,6 +138,7 @@ export function App() {
         images_base64: currentImagesBase64,
         image_mime_type: currentMimeType,
         context: currentContext,
+        termos_autocomplete: currentTermosAutocomplete,
         style_preset: 'ugc_realista',
         video_engine: 'veo3',
         clarification_answers: answers,
@@ -159,6 +164,7 @@ export function App() {
         images_base64: currentImagesBase64,
         image_mime_type: currentMimeType,
         context: currentContext,
+        termos_autocomplete: currentTermosAutocomplete,
         style_preset: 'ugc_realista',
         video_engine: 'veo3',
         force_generation: true,
@@ -185,6 +191,7 @@ export function App() {
         images_base64: currentImagesBase64,
         image_mime_type: currentMimeType,
         context: currentContext,
+        termos_autocomplete: currentTermosAutocomplete,
         style_preset: 'ugc_realista',
         video_engine: 'veo3',
         previous_response: scriptResult,
@@ -206,6 +213,7 @@ export function App() {
     setScriptResult(null);
     setCurrentImagesBase64([]);
     setCurrentContext('');
+    setCurrentTermosAutocomplete('');
     setErrorMessage(null);
   };
 

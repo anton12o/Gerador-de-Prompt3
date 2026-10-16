@@ -7,7 +7,8 @@ import {
   Link as LinkIcon,
   Sparkles,
   Zap,
-  Plus
+  Plus,
+  Search
 } from 'lucide-react';
 
 interface ImageDropProps {
@@ -15,7 +16,8 @@ interface ImageDropProps {
     imagesBase64: string[],
     mimeType: string | undefined,
     context: string,
-    force: boolean
+    force: boolean,
+    termosAutocomplete?: string
   ) => void;
   isLoading: boolean;
 }
@@ -26,6 +28,7 @@ export const ImageDrop: React.FC<ImageDropProps> = ({ onGenerate, isLoading }) =
   const [images, setImages] = useState<string[]>([]);
   const [mimeType, setMimeType] = useState<string>('image/jpeg');
   const [context, setContext] = useState<string>('');
+  const [termosAutocomplete, setTermosAutocomplete] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -134,11 +137,11 @@ export const ImageDrop: React.FC<ImageDropProps> = ({ onGenerate, isLoading }) =
   };
 
   const handleSubmit = (force: boolean = false) => {
-    if (images.length === 0 && !context.trim()) {
+    if (images.length === 0 && !context.trim() && !termosAutocomplete.trim()) {
       alert('Por favor, envie ao menos uma foto do produto ou descreva o produto no campo de contexto.');
       return;
     }
-    onGenerate(images, mimeType, context, force);
+    onGenerate(images, mimeType, context, force, termosAutocomplete);
   };
 
   return (
@@ -257,9 +260,9 @@ export const ImageDrop: React.FC<ImageDropProps> = ({ onGenerate, isLoading }) =
         </div>
 
         {/* Context and Notes Column */}
-        <div className="w-full md:w-1/2 flex flex-col justify-between">
+        <div className="w-full md:w-1/2 flex flex-col justify-between space-y-3">
           <div>
-            <label className="block text-sm font-semibold text-slate-200 mb-2 flex items-center gap-2">
+            <label className="block text-sm font-semibold text-slate-200 mb-1.5 flex items-center gap-2">
               <LinkIcon className="w-4 h-4 text-amber-400" />
               Link ou Instrução de Venda (Opcional):
             </label>
@@ -267,13 +270,31 @@ export const ImageDrop: React.FC<ImageDropProps> = ({ onGenerate, isLoading }) =
               value={context}
               onChange={(e) => setContext(e.target.value)}
               placeholder="Cole o link do produto da Shopee ou adicione notas específicas:&#10;Ex: 'Foco no tecido térmico', 'Preço de R$ 39,90 com frete grátis', 'Público: pessoas com dor nas costas'..."
-              rows={7}
-              className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 rounded-xl p-3.5 text-sm text-slate-100 placeholder:text-slate-500 resize-none transition-all outline-none"
+              rows={4}
+              className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 rounded-xl p-3 text-xs text-slate-100 placeholder:text-slate-500 resize-none transition-all outline-none"
             />
-            <p className="text-[11px] text-slate-400 mt-2 flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-amber-400" /> Otimizado exclusivamente para Google Veo: vídeo contínuo de 10s com locução embutida.
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+              <Search className="w-3.5 h-3.5 text-amber-400" />
+              Termos do Autocomplete Shopee (Opcional):
+            </label>
+            <input
+              type="text"
+              value={termosAutocomplete}
+              onChange={(e) => setTermosAutocomplete(e.target.value)}
+              placeholder="Ex: garrafa termica inox, garrafa cafe termica 1 litro..."
+              className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 transition-all outline-none"
+            />
+            <p className="text-[10px] text-slate-500 mt-1">
+              Cole termos do autocomplete da Shopee para travar o título SEO com as palavras exatas.
             </p>
           </div>
+
+          <p className="text-[11px] text-slate-400 flex items-center gap-1 pt-0.5">
+            <Sparkles className="w-3 h-3 text-amber-400" /> Otimizado exclusivamente para Google Veo: vídeo de 10s contínuo e dados de postagem.
+          </p>
         </div>
 
       </div>
@@ -282,7 +303,7 @@ export const ImageDrop: React.FC<ImageDropProps> = ({ onGenerate, isLoading }) =
       <div className="flex flex-col sm:flex-row gap-3 pt-3 border-t border-slate-800">
         <button
           type="button"
-          disabled={isLoading || (images.length === 0 && !context.trim())}
+          disabled={isLoading || (images.length === 0 && !context.trim() && !termosAutocomplete.trim())}
           onClick={() => handleSubmit(false)}
           className="flex-1 py-3 px-5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-sm rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all transform active:scale-[0.98]"
         >
@@ -292,7 +313,7 @@ export const ImageDrop: React.FC<ImageDropProps> = ({ onGenerate, isLoading }) =
 
         <button
           type="button"
-          disabled={isLoading || (images.length === 0 && !context.trim())}
+          disabled={isLoading || (images.length === 0 && !context.trim() && !termosAutocomplete.trim())}
           onClick={() => handleSubmit(true)}
           title="Pula as perguntas de esclarecimento e gera direto com a melhor suposição"
           className="py-3 px-4 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 text-slate-300 font-medium text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap"
