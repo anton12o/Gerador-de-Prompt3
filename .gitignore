@@ -45,3 +45,8 @@ ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 .DS_Store
+
+# Logs
+backend/logs/
+logs/
+*.csv

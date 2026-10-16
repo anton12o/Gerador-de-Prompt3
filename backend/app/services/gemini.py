@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import logging
+from datetime import datetime
 from typing import Optional, List, Dict, Any
 from fastapi import HTTPException, status
 from google import genai
@@ -9,6 +10,7 @@ from google.genai import types
 
 from app.core.config import settings
 from app.prompts.system import SYSTEM_PROMPT
+from app.services.logger_csv import registrar_geracao, sintetizar_motivo_falha
 from app.schemas.script import (
     ScriptResult,
     ScriptModelOutput,
@@ -264,235 +266,336 @@ class GeminiService:
         tempo_inicio = asyncio.get_event_loop().time()
         timeout_maximo_total = GEMINI_TIMEOUT_SECONDS
 
-        contents: List[Any] = []
-
-        # 1. Process multiple or single images if provided
-        all_images: List[str] = []
-        if request.images_base64 and len(request.images_base64) > 0:
-            all_images = request.images_base64
-        elif request.image_base64:
-            all_images = [request.image_base64]
-
-        for idx, img_b64 in enumerate(all_images):
-            try:
-                img_bytes, mime = self._decode_image(img_b64, request.image_mime_type or "image/jpeg")
-                image_part = types.Part.from_bytes(data=img_bytes, mime_type=mime)
-                contents.append(image_part)
-            except Exception as e:
-                logger.warning(f"Falha ao carregar imagem {idx + 1}: {e}")
-
-        # 2. Build the instruction prompt based on the state
-        prompt_parts: List[str] = []
-
-        if len(all_images) > 1:
-            prompt_parts.append(
-                f"OBSERVAÇÃO MULTI-IMAGEM: O usuário forneceu {len(all_images)} fotos de ângulos/detalhes diferentes do produto. "
-                "Considere a PRIMEIRA imagem como o Start Frame obrigatório e use as imagens adicionais como referência de textura, ângulos e acabamento.\n"
-            )
-
-        # Operação exclusiva para Google Veo3: estilo comercial cinematográfico vertical limpo
-        prompt_parts.append(
-            "ESTILO VISUAL: Comercial de Alta Conversão Otimizado para Google Veo (Foco 100% no produto físico, texturas reais, iluminação limpa e enquadramento 9:16 vertical).\n"
-        )
-
-        if request.context:
-            prompt_parts.append(f"CONTEXTO DO PRODUTO / LINK / NOTA DO USUÁRIO:\n{request.context.strip()}\n")
-
-        if request.termos_autocomplete and request.termos_autocomplete.strip():
-            prompt_parts.append(
-                f"TERMOS DO AUTOCOMPLETE (SHOPEE/TIKTOK):\n{request.termos_autocomplete.strip()}\n"
-                "(Use ESTRITAMENTE e SOMENTE termos presentes nesta lista para compor o titulo_seo!)\n"
-            )
-
-        # Refinement turn
+        # Determinação do tipo de requisição (sempre rastreável)
         if request.refinement_instruction:
-            prompt_parts.append("MODO DE OPERAÇÃO: REFINAMENTO ITERATIVO")
-            if request.previous_response:
-                prompt_parts.append(f"ROTEIRO ANTERIOR GERADO:\n{json.dumps(request.previous_response, ensure_ascii=False, indent=2)}\n")
-            prompt_parts.append(
-                f"PEDIDO DE REFINAMENTO DO USUÁRIO: \"{request.refinement_instruction}\"\n"
-                "INSTRUÇÕES DE REFINAMENTO:\n"
-                "- Identifique com precisão qual variável estratégica você está alterando (ex: gancho de Dor para Curiosidade, ênfase em textura, ritmo).\n"
-                "- Preencha o campo `refinement_summary` explicando o que foi alterado e por quê.\n"
-                f"- Retorne `status: 'completed'` com as partes estruturadas e as 3 variantes de gancho respeitando rigorosamente a contagem de palavras ({MAX_WORDS_HOOK}/{MAX_WORDS_BENEFIT}/{MAX_WORDS_CTA}, total {MIN_WORDS_TOTAL}-{MAX_WORDS_TOTAL}) e caracteres ({MAX_CHARS_HOOK}/{MAX_CHARS_BENEFIT}/{MAX_CHARS_CTA}, total <= {MAX_CHARS_TOTAL}).\n"
-                "- Mantenha Anchor Prompts espaciais rígidos em todas as partes e repita a ancoragem estrutural no bloco_cta_visual sem logos.\n"
-                "- Mantenha ou atualize titulo_seo, legenda_na_tela (máx 5 palavras) e hashtags (terminando com #publicidade).\n"
-            )
-
-        # Follow-up with clarification answers
+            tipo_operacao = "refinamento"
         elif request.clarification_answers:
-            prompt_parts.append("MODO DE OPERAÇÃO: PÓS-DIAGNÓSTICO (RESPOSTAS DO USUÁRIO RECEBIDAS)")
-            answers_text = "\n".join([f"- Pergunta/Opção: {ans}" for k, ans in request.clarification_answers.items()])
-            prompt_parts.append(
-                f"RESPOSTAS DO USUÁRIO:\n{answers_text}\n\n"
-                "INSTRUÇÃO:\n"
-                "O usuário já definiu o diferencial do produto. PARE de fazer perguntas de esclarecimento.\n"
-                "Gere o roteiro completo no estado `status: 'completed'` preenchendo o diagnóstico, as `partes` estruturadas, as 3 opções de `multiple_hooks` e os campos de postagem (titulo_seo, legenda_na_tela <= 5 palavras, hashtags com #publicidade no final)."
-            )
-
-        # Force generation mode
-        elif request.force_generation:
-            prompt_parts.append("MODO DE OPERAÇÃO: GERAÇÃO DIRETA FORÇADA")
-            prompt_parts.append(
-                "O usuário solicitou geração direta sem perguntas adicionais.\n"
-                "Defina o ângulo de venda mais promissor e retorne `status: 'completed'` com todas as partes estruturadas, as 3 opções de gancho e os campos de postagem (titulo_seo, legenda_na_tela <= 5 palavras, hashtags com #publicidade no final) respeitando os limites de palavras, caracteres e ancoragem espacial."
-            )
-
-        # First turn: Ambiguity filter active
+            tipo_operacao = "esclarecimento"
         else:
-            prompt_parts.append("MODO DE OPERAÇÃO: FILTRO DE AMBIGUIDADE ATIVO (TECH LEMONADE)")
+            tipo_operacao = "geracao"
+
+        # Variáveis de rastreamento para o log CSV
+        modelos_tentados: List[str] = []
+        modelo_final: str = ""
+        total_chamadas_modelo: int = 0
+        passou_de_primeira: str = ""
+        houve_retry: str = ""
+        resultado: str = "outro"
+        motivo_falha: str = ""
+        palavras_total: str = ""
+        chars_total: str = ""
+        chars_gancho: str = ""
+        chars_beneficio: str = ""
+        chars_cta: str = ""
+
+        try:
+            contents: List[Any] = []
+
+            # 1. Process multiple or single images if provided
+            all_images: List[str] = []
+            if request.images_base64 and len(request.images_base64) > 0:
+                all_images = request.images_base64
+            elif request.image_base64:
+                all_images = [request.image_base64]
+
+            for idx, img_b64 in enumerate(all_images):
+                try:
+                    img_bytes, mime = self._decode_image(img_b64, request.image_mime_type or "image/jpeg")
+                    image_part = types.Part.from_bytes(data=img_bytes, mime_type=mime)
+                    contents.append(image_part)
+                except Exception as e:
+                    logger.warning(f"Falha ao carregar imagem {idx + 1}: {e}")
+
+            # 2. Build the instruction prompt based on the state
+            prompt_parts: List[str] = []
+
+            if len(all_images) > 1:
+                prompt_parts.append(
+                    f"OBSERVAÇÃO MULTI-IMAGEM: O usuário forneceu {len(all_images)} fotos de ângulos/detalhes diferentes do produto. "
+                    "Considere a PRIMEIRA imagem como o Start Frame obrigatório e use as imagens adicionais como referência de textura, ângulos e acabamento.\n"
+                )
+
+            # Operação exclusiva para Google Veo3: estilo comercial cinematográfico vertical limpo
             prompt_parts.append(
-                "Avalie criticamente a imagem e o contexto fornecidos:\n"
-                "1. Se o produto tiver múltiplos ângulos de venda possíveis, ou for genérico e a dor principal não estiver evidente:\n"
-                "   -> Ative `status: 'needs_clarification'`.\n"
-                "   -> Crie de 1 a 2 perguntas de múltipla escolha com 3 alternativas claras cada.\n"
-                "   -> Deixe os campos `partes` e `multiple_hooks` como null.\n\n"
-                "2. Se a imagem e o contexto já forem claros e específicos:\n"
-                "   -> Avance para `status: 'completed'` preenchendo as `partes`, os `multiple_hooks` e os campos de postagem."
+                "ESTILO VISUAL: Comercial de Alta Conversão Otimizado para Google Veo (Foco 100% no produto físico, texturas reais, iluminação limpa e enquadramento 9:16 vertical).\n"
             )
 
-        prompt_parts.append(
-            "\nREGRAS CRÍTICAS DE VALIDAÇÃO, ANCORAGEM FÍSICA E POSTAGEM (NÃO VIOLE ESTES LIMITES):\n"
-            f"- Gancho (0-3s): máximo {MAX_WORDS_HOOK} palavras e até {MAX_CHARS_HOOK} caracteres em cada uma das 3 opções de gancho.\n"
-            f"- Benefício (3-7s): máximo {MAX_WORDS_BENEFIT} palavras e até {MAX_CHARS_BENEFIT} caracteres baseados somente no anúncio.\n"
-            f"- CTA (7-10s): máximo {MAX_WORDS_CTA} palavras e até {MAX_CHARS_CTA} caracteres.\n"
-            f"- Total somado: estritamente entre {MIN_WORDS_TOTAL} e {MAX_WORDS_TOTAL} palavras e MÁXIMO {MAX_CHARS_TOTAL} caracteres com espaços.\n"
-            "- REGRA DE MOVIMENTO EXTREMO (0-3s): Proibido produto parado ou verbos lentos ('slowly rotating', 'panning', 'static shot'). Exija ação física imediata e dinâmica ('Fast, dynamic motion', 'hands quickly unfolding', 'suddenly picking up').\n"
-            "- FUGA DE PROPRIEDADE INTELECTUAL: NUNCA mencione logos, marcas ou letras na descrição visual. Descreva apenas texturas ('breathable woven fabric'), cores e anatomia funcional. Como o Veo3 não pode gerar letras, pedir foco em logos causa borrões plásticos.\n"
-            "- ANCHOR PROMPTS ESPACIAIS: Descreva as partes do produto sempre com coordenadas físicas rígidas (ex: 'metal blades firmly anchored to the bottom motor base', 'curved handle securely fixed to the lateral body').\n"
-            "- REPETIÇÃO DE ANCORAGEM NA CENA 3: No bloco_cta_visual (7-10s), você DEVE OBRIGATORIAMENTE REPETIR essa mesma ancoragem física estrutural das partes para garantir que nada flutue ou se desconecte no corte final.\n"
-            "- CAMPOS DE POSTAGEM: titulo_seo (usar SOMENTE termos de autocomplete se fornecido), legenda_na_tela (MÁXIMO 5 PALAVRAS), hashtags (lista terminando OBRIGATORIAMENTE com '#publicidade').\n"
-        )
+            if request.context:
+                prompt_parts.append(f"CONTEXTO DO PRODUTO / LINK / NOTA DO USUÁRIO:\n{request.context.strip()}\n")
 
-        contents.append("\n".join(prompt_parts))
-
-        # 3. Call Gemini with Structured Outputs and automatic fallback
-        config = types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            response_mime_type="application/json",
-            response_schema=ScriptModelOutput,
-            temperature=0.7,
-        )
-
-        last_error = None
-        for model_candidate in FALLBACK_MODELS:
-            tempo_decorrido = asyncio.get_event_loop().time() - tempo_inicio
-            tempo_restante = timeout_maximo_total - tempo_decorrido
-
-            if tempo_restante <= 1.0:
-                logger.error(f"Tempo limite de {timeout_maximo_total}s atingido no backend antes de concluir chamadas aos modelos.")
-                raise HTTPException(
-                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                    detail=f"Tempo limite de {int(timeout_maximo_total)} segundos esgotado no backend ao tentar gerar com a IA."
+            if request.termos_autocomplete and request.termos_autocomplete.strip():
+                prompt_parts.append(
+                    f"TERMOS DO AUTOCOMPLETE (SHOPEE/TIKTOK):\n{request.termos_autocomplete.strip()}\n"
+                    "(Use ESTRITAMENTE e SOMENTE termos presentes nesta lista para compor o titulo_seo!)\n"
                 )
 
-            try:
-                logger.info(f"Enviando requisição assíncrona para modelo: {model_candidate} (timeout restante: {tempo_restante:.1f}s)")
-                response = await asyncio.wait_for(
-                    self.client.aio.models.generate_content(
-                        model=model_candidate,
-                        contents=contents,
-                        config=config,
-                    ),
-                    timeout=tempo_restante
+            # Refinement turn
+            if request.refinement_instruction:
+                prompt_parts.append("MODO DE OPERAÇÃO: REFINAMENTO ITERATIVO")
+                if request.previous_response:
+                    prompt_parts.append(f"ROTEIRO ANTERIOR GERADO:\n{json.dumps(request.previous_response, ensure_ascii=False, indent=2)}\n")
+                prompt_parts.append(
+                    f"PEDIDO DE REFINAMENTO DO USUÁRIO: \"{request.refinement_instruction}\"\n"
+                    "INSTRUÇÕES DE REFINAMENTO:\n"
+                    "- Identifique com precisão qual variável estratégica você está alterando (ex: gancho de Dor para Curiosidade, ênfase em textura, ritmo).\n"
+                    "- Preencha o campo `refinement_summary` explicando o que foi alterado e por quê.\n"
+                    f"- Retorne `status: 'completed'` com as partes estruturadas e as 3 variantes de gancho respeitando rigorosamente a contagem de palavras ({MAX_WORDS_HOOK}/{MAX_WORDS_BENEFIT}/{MAX_WORDS_CTA}, total {MIN_WORDS_TOTAL}-{MAX_WORDS_TOTAL}) e caracteres ({MAX_CHARS_HOOK}/{MAX_CHARS_BENEFIT}/{MAX_CHARS_CTA}, total <= {MAX_CHARS_TOTAL}).\n"
+                    "- Mantenha Anchor Prompts espaciais rígidos em todas as partes e repita a ancoragem estrutural no bloco_cta_visual sem logos.\n"
+                    "- Mantenha ou atualize titulo_seo, legenda_na_tela (máx 5 palavras) e hashtags (terminando com #publicidade).\n"
                 )
 
-                if response.text:
-                    data = json.loads(response.text)
-                    model_out = ScriptModelOutput.model_validate(data)
+            # Follow-up with clarification answers
+            elif request.clarification_answers:
+                prompt_parts.append("MODO DE OPERAÇÃO: PÓS-DIAGNÓSTICO (RESPOSTAS DO USUÁRIO RECEBIDAS)")
+                answers_text = "\n".join([f"- Pergunta/Opção: {ans}" for k, ans in request.clarification_answers.items()])
+                prompt_parts.append(
+                    f"RESPOSTAS DO USUÁRIO:\n{answers_text}\n\n"
+                    "INSTRUÇÃO:\n"
+                    "O usuário já definiu o diferencial do produto. PARE de fazer perguntas de esclarecimento.\n"
+                    "Gere o roteiro completo no estado `status: 'completed'` preenchendo o diagnóstico, as `partes` estruturadas, as 3 opções de `multiple_hooks` e os campos de postagem (titulo_seo, legenda_na_tela <= 5 palavras, hashtags com #publicidade no final)."
+                )
 
-                    # Se estiver em status 'needs_clarification', retorna imediatamente com o modelo utilizado
-                    if model_out.status == "needs_clarification":
-                        res_clarif = ScriptResult(**model_out.model_dump())
-                        res_clarif.modelo_utilizado = model_candidate
-                        return res_clarif
+            # Force generation mode
+            elif request.force_generation:
+                prompt_parts.append("MODO DE OPERAÇÃO: GERAÇÃO DIRETA FORÇADA")
+                prompt_parts.append(
+                    "O usuário solicitou geração direta sem perguntas adicionais.\n"
+                    "Defina o ângulo de venda mais promissor e retorne `status: 'completed'` com todas as partes estruturadas, as 3 opções de gancho e os campos de postagem (titulo_seo, legenda_na_tela <= 5 palavras, hashtags com #publicidade no final) respeitando os limites de palavras, caracteres e ancoragem espacial."
+                )
 
-                    result = ScriptResult(**model_out.model_dump())
-                    result.modelo_utilizado = model_candidate
+            # First turn: Ambiguity filter active
+            else:
+                prompt_parts.append("MODO DE OPERAÇÃO: FILTRO DE AMBIGUIDADE ATIVO (TECH LEMONADE)")
+                prompt_parts.append(
+                    "Avalie criticamente a imagem e o contexto fornecidos:\n"
+                    "1. Se o produto tiver múltiplos ângulos de venda possíveis, ou for genérico e a dor principal não estiver evidente:\n"
+                    "   -> Ative `status: 'needs_clarification'`.\n"
+                    "   -> Crie de 1 a 2 perguntas de múltipla escolha com 3 alternativas claras cada.\n"
+                    "   -> Deixe os campos `partes` e `multiple_hooks` como null.\n\n"
+                    "2. Se a imagem e o contexto já forem claros e específicos:\n"
+                    "   -> Avance para `status: 'completed'` preenchendo as `partes`, os `multiple_hooks` e os campos de postagem."
+                )
 
-                    # Validar e contar palavras e caracteres deterministicamente no backend
-                    valido, erro_validacao, contagens = validar_e_contar_palavras(result)
+            prompt_parts.append(
+                "\nREGRAS CRÍTICAS DE VALIDAÇÃO, ANCORAGEM FÍSICA E POSTAGEM (NÃO VIOLE ESTES LIMITES):\n"
+                f"- Gancho (0-3s): máximo {MAX_WORDS_HOOK} palavras e até {MAX_CHARS_HOOK} caracteres em cada uma das 3 opções de gancho.\n"
+                f"- Benefício (3-7s): máximo {MAX_WORDS_BENEFIT} palavras e até {MAX_CHARS_BENEFIT} caracteres baseados somente no anúncio.\n"
+                f"- CTA (7-10s): máximo {MAX_WORDS_CTA} palavras e até {MAX_CHARS_CTA} caracteres.\n"
+                f"- Total somado: estritamente entre {MIN_WORDS_TOTAL} e {MAX_WORDS_TOTAL} palavras e MÁXIMO {MAX_CHARS_TOTAL} caracteres com espaços.\n"
+                "- REGRA DE MOVIMENTO EXTREMO (0-3s): Proibido produto parado ou verbos lentos ('slowly rotating', 'panning', 'static shot'). Exija ação física imediata e dinâmica ('Fast, dynamic motion', 'hands quickly unfolding', 'suddenly picking up').\n"
+                "- FUGA DE PROPRIEDADE INTELECTUAL: NUNCA mencione logos, marcas ou letras na descrição visual. Descreva apenas texturas ('breathable woven fabric'), cores e anatomia funcional. Como o Veo3 não pode gerar letras, pedir foco em logos causa borrões plásticos.\n"
+                "- ANCHOR PROMPTS ESPACIAIS: Descreva as partes do produto sempre com coordenadas físicas rígidas (ex: 'metal blades firmly anchored to the bottom motor base', 'curved handle securely fixed to the lateral body').\n"
+                "- REPETIÇÃO DE ANCORAGEM NA CENA 3: No bloco_cta_visual (7-10s), você DEVE OBRIGATORIAMENTE REPETIR essa mesma ancoragem física estrutural das partes para garantir que nada flutue ou se desconecte no corte final.\n"
+                "- CAMPOS DE POSTAGEM: titulo_seo (usar SOMENTE termos de autocomplete se fornecido), legenda_na_tela (MÁXIMO 5 PALAVRAS), hashtags (lista terminando OBRIGATORIAMENTE com '#publicidade').\n"
+            )
 
-                    if not valido:
-                        logger.warning(f"Validação híbrida (palavras/caracteres) falhou ({erro_validacao}). Executando 1 retry corretivo...")
-                        tempo_decorrido_retry = asyncio.get_event_loop().time() - tempo_inicio
-                        tempo_restante_retry = timeout_maximo_total - tempo_decorrido_retry
+            contents.append("\n".join(prompt_parts))
 
-                        if tempo_restante_retry <= 2.0:
-                            raise HTTPException(
-                                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                                detail=f"Tempo limite de {int(timeout_maximo_total)} segundos esgotado no backend antes de executar retry de encurtamento."
-                            )
+            # 3. Call Gemini with Structured Outputs and automatic fallback
+            config = types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                response_schema=ScriptModelOutput,
+                temperature=0.7,
+            )
 
-                        retry_contents = list(contents) + [
-                            f"CORREÇÃO OBRIGATÓRIA (LOCUÇÃO, ANCORAGEM E POSTAGEM): O roteiro anterior violou as seguintes regras: {erro_validacao}. "
-                            f"REESCREVA o JSON imediatamente corrigindo todos os pontos apontados. "
-                            f"Regras obrigatórias: cada gancho <= {MAX_WORDS_HOOK} palavras e <= {MAX_CHARS_HOOK} caracteres, "
-                            f"benefício <= {MAX_WORDS_BENEFIT} palavras e <= {MAX_CHARS_BENEFIT} caracteres, "
-                            f"CTA <= {MAX_WORDS_CTA} palavras e <= {MAX_CHARS_CTA} caracteres, "
-                            f"total somado entre {MIN_WORDS_TOTAL} e {MAX_WORDS_TOTAL} palavras e <= {MAX_CHARS_TOTAL} caracteres, "
-                            f"bloco_cta_visual repetindo a ancoragem física das peças sem logos, "
-                            f"legenda_na_tela com no MÁXIMO 5 palavras, e a última hashtag da lista sendo rigorosamente '#publicidade'."
-                        ]
-                        retry_response = await asyncio.wait_for(
-                            self.client.aio.models.generate_content(
-                                model=model_candidate,
-                                contents=retry_contents,
-                                config=config,
-                            ),
-                            timeout=tempo_restante_retry
-                        )
-                        if retry_response.text:
-                            retry_data = json.loads(retry_response.text)
-                            retry_out = ScriptModelOutput.model_validate(retry_data)
-                            retry_result = ScriptResult(**retry_out.model_dump())
-                            retry_result.modelo_utilizado = model_candidate
-                            valido_retry, erro_retry, _ = validar_e_contar_palavras(retry_result)
-                            if valido_retry:
-                                result = retry_result
-                            else:
-                                logger.error(f"Retry de validação falhou: {erro_retry}")
+            last_error = None
+            for model_candidate in FALLBACK_MODELS:
+                tempo_decorrido = asyncio.get_event_loop().time() - tempo_inicio
+                tempo_restante = timeout_maximo_total - tempo_decorrido
+
+                if tempo_restante <= 1.0:
+                    logger.error(f"Tempo limite de {timeout_maximo_total}s atingido no backend antes de concluir chamadas aos modelos.")
+                    resultado = "erro_504"
+                    motivo_falha = "timeout_504"
+                    raise HTTPException(
+                        status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                        detail=f"Tempo limite de {int(timeout_maximo_total)} segundos esgotado no backend ao tentar gerar com a IA."
+                    )
+
+                try:
+                    logger.info(f"Enviando requisição assíncrona para modelo: {model_candidate} (timeout restante: {tempo_restante:.1f}s)")
+                    modelos_tentados.append(model_candidate)
+                    total_chamadas_modelo += 1
+                    response = await asyncio.wait_for(
+                        self.client.aio.models.generate_content(
+                            model=model_candidate,
+                            contents=contents,
+                            config=config,
+                        ),
+                        timeout=tempo_restante
+                    )
+
+                    if response.text:
+                        data = json.loads(response.text)
+                        model_out = ScriptModelOutput.model_validate(data)
+
+                        # Se estiver em status 'needs_clarification', retorna imediatamente com o modelo utilizado
+                        if model_out.status == "needs_clarification":
+                            modelo_final = model_candidate
+                            resultado = "ok_esclarecimento"
+                            # passou_de_primeira e houve_retry vazios (sem validação de roteiro)
+                            res_clarif = ScriptResult(**model_out.model_dump())
+                            res_clarif.modelo_utilizado = model_candidate
+                            return res_clarif
+
+                        result = ScriptResult(**model_out.model_dump())
+                        result.modelo_utilizado = model_candidate
+
+                        # Validar e contar palavras e caracteres deterministicamente no backend
+                        valido, erro_validacao, contagens = validar_e_contar_palavras(result)
+
+                        if not valido:
+                            houve_retry = "sim"
+                            passou_de_primeira = "não"
+                            logger.warning(f"Validação híbrida (palavras/caracteres) falhou ({erro_validacao}). Executando 1 retry corretivo...")
+                            tempo_decorrido_retry = asyncio.get_event_loop().time() - tempo_inicio
+                            tempo_restante_retry = timeout_maximo_total - tempo_decorrido_retry
+
+                            if tempo_restante_retry <= 2.0:
+                                resultado = "erro_504"
+                                motivo_falha = "timeout_504"
                                 raise HTTPException(
-                                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                    detail=f"A resposta gerada violou as regras de validação (cadência ou postagem) mesmo após tentativa de correção: {erro_retry}."
+                                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                                    detail=f"Tempo limite de {int(timeout_maximo_total)} segundos esgotado no backend antes de executar retry de encurtamento."
                                 )
 
-                    # Montar prompt_veo e locucao_pt deterministicamente por código
-                    if result.partes and result.multiple_hooks:
-                        gancho_ativo = result.multiple_hooks.dor
-                        if result.selected_hook_type == "curiosidade":
-                            gancho_ativo = result.multiple_hooks.curiosidade
-                        elif result.selected_hook_type == "quebra_de_padrao":
-                            gancho_ativo = result.multiple_hooks.quebra_de_padrao
+                            retry_contents = list(contents) + [
+                                f"CORREÇÃO OBRIGATÓRIA (LOCUÇÃO, ANCORAGEM E POSTAGEM): O roteiro anterior violou as seguintes regras: {erro_validacao}. "
+                                f"REESCREVA o JSON imediatamente corrigindo todos os pontos apontados. "
+                                f"Regras obrigatórias: cada gancho <= {MAX_WORDS_HOOK} palavras e <= {MAX_CHARS_HOOK} caracteres, "
+                                f"benefício <= {MAX_WORDS_BENEFIT} palavras e <= {MAX_CHARS_BENEFIT} caracteres, "
+                                f"CTA <= {MAX_WORDS_CTA} palavras e <= {MAX_CHARS_CTA} caracteres, "
+                                f"total somado entre {MIN_WORDS_TOTAL} e {MAX_WORDS_TOTAL} palavras e <= {MAX_CHARS_TOTAL} caracteres, "
+                                f"bloco_cta_visual repetindo a ancoragem física das peças sem logos, "
+                                f"legenda_na_tela com no MÁXIMO 5 palavras, e a última hashtag da lista sendo rigorosamente '#publicidade'."
+                            ]
+                            total_chamadas_modelo += 1
+                            retry_response = await asyncio.wait_for(
+                                self.client.aio.models.generate_content(
+                                    model=model_candidate,
+                                    contents=retry_contents,
+                                    config=config,
+                                ),
+                                timeout=tempo_restante_retry
+                            )
+                            if retry_response.text:
+                                retry_data = json.loads(retry_response.text)
+                                retry_out = ScriptModelOutput.model_validate(retry_data)
+                                retry_result = ScriptResult(**retry_out.model_dump())
+                                retry_result.modelo_utilizado = model_candidate
+                                valido_retry, erro_retry, contagens_retry = validar_e_contar_palavras(retry_result)
+                                if valido_retry:
+                                    result = retry_result
+                                    contagens = contagens_retry
+                                else:
+                                    logger.error(f"Retry de validação falhou: {erro_retry}")
+                                    resultado = "erro_422"
+                                    motivo_falha = sintetizar_motivo_falha(erro_retry)
+                                    raise HTTPException(
+                                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                        detail=f"A resposta gerada violou as regras de validação (cadência ou postagem) mesmo após tentativa de correção: {erro_retry}."
+                                    )
+                        else:
+                            passou_de_primeira = "sim"
+                            houve_retry = "não"
 
-                        result.prompt_veo = montar_prompt_veo(result.partes, gancho_ativo)
-                        result.locucao_pt = montar_locucao_pt(gancho_ativo.fala, result.partes.fala_beneficio, result.partes.fala_cta)
+                        # Montar prompt_veo e locucao_pt deterministicamente por código
+                        if result.partes and result.multiple_hooks:
+                            gancho_ativo = result.multiple_hooks.dor
+                            if result.selected_hook_type == "curiosidade":
+                                gancho_ativo = result.multiple_hooks.curiosidade
+                            elif result.selected_hook_type == "quebra_de_padrao":
+                                gancho_ativo = result.multiple_hooks.quebra_de_padrao
 
-                    result.modelo_utilizado = model_candidate
-                    return result
+                            result.prompt_veo = montar_prompt_veo(result.partes, gancho_ativo)
+                            result.locucao_pt = montar_locucao_pt(gancho_ativo.fala, result.partes.fala_beneficio, result.partes.fala_cta)
 
-            except asyncio.TimeoutError:
-                logger.error(f"Timeout de chamada com modelo {model_candidate} (limite global {timeout_maximo_total}s atingido).")
-                raise HTTPException(
-                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                    detail=f"A chamada à API de IA excedeu o tempo limite cravado de {int(timeout_maximo_total)} segundos no backend."
-                )
-            except HTTPException:
-                raise
-            except Exception as e:
-                last_error = e
-                err_msg = str(e)
-                logger.warning(f"Tentativa com {model_candidate} falhou: {err_msg}")
-                # Se for cota esgotada ou indisponibilidade, avança para o próximo modelo sem travar
-                if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "503" in err_msg or "quota" in err_msg.lower():
-                    logger.info(f"Modelo {model_candidate} com cota esgotada ou instável. Pulando para próximo fallback.")
-                    continue
-                await asyncio.sleep(0.5)
+                        result.modelo_utilizado = model_candidate
+                        modelo_final = model_candidate
+                        resultado = "ok"
+                        palavras_total = str(result.total_palavras)
+                        chars_total = str(result.total_caracteres)
+                        chars_gancho = str(contagens.caracteres_gancho)
+                        chars_beneficio = str(contagens.caracteres_beneficio)
+                        chars_cta = str(contagens.caracteres_cta)
+                        return result
 
-        logger.error(f"Todos os modelos falharam. Último erro: {last_error}")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Falha ao comunicar com os modelos de IA após tentativas de fallback: {str(last_error)}"
-        )
+                except asyncio.TimeoutError:
+                    logger.error(f"Timeout de chamada com modelo {model_candidate} (limite global {timeout_maximo_total}s atingido).")
+                    resultado = "erro_504"
+                    motivo_falha = "timeout_504"
+                    raise HTTPException(
+                        status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                        detail=f"A chamada à API de IA excedeu o tempo limite cravado de {int(timeout_maximo_total)} segundos no backend."
+                    )
+                except HTTPException:
+                    raise
+                except asyncio.CancelledError:
+                    resultado = "cancelado"
+                    motivo_falha = "cancelado_pelo_cliente"
+                    raise
+                except Exception as e:
+                    last_error = e
+                    err_msg = str(e)
+                    logger.warning(f"Tentativa com {model_candidate} falhou: {err_msg}")
+                    # Se for cota esgotada ou indisponibilidade, avança para o próximo modelo sem travar
+                    if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "503" in err_msg or "quota" in err_msg.lower():
+                        logger.info(f"Modelo {model_candidate} com cota esgotada ou instável. Pulando para próximo fallback.")
+                        continue
+                    await asyncio.sleep(0.5)
+
+            logger.error(f"Todos os modelos falharam. Último erro: {last_error}")
+            resultado = "erro_api"
+            motivo_falha = sintetizar_motivo_falha(last_error)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Falha ao comunicar com os modelos de IA após tentativas de fallback: {str(last_error)}"
+            )
+
+        except asyncio.CancelledError:
+            resultado = "cancelado"
+            motivo_falha = "cancelado_pelo_cliente"
+            raise
+        except HTTPException as he:
+            if not motivo_falha:
+                if he.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
+                    resultado = "erro_422"
+                    motivo_falha = sintetizar_motivo_falha(he.detail)
+                elif he.status_code == status.HTTP_504_GATEWAY_TIMEOUT:
+                    resultado = "erro_504"
+                    motivo_falha = "timeout_504"
+                elif he.status_code in (status.HTTP_502_BAD_GATEWAY, status.HTTP_503_SERVICE_UNAVAILABLE):
+                    resultado = "erro_api"
+                    motivo_falha = sintetizar_motivo_falha(he.detail)
+                else:
+                    resultado = "outro"
+                    motivo_falha = sintetizar_motivo_falha(he.detail)
+            raise
+        except Exception as e:
+            if not motivo_falha:
+                resultado = "outro"
+                motivo_falha = sintetizar_motivo_falha(e)
+            raise
+        finally:
+            tempo_total_s = round(asyncio.get_event_loop().time() - tempo_inicio, 2)
+            dados_log = {
+                "data_hora": datetime.now().isoformat(),
+                "tipo": tipo_operacao,
+                "modelos_tentados": "|".join(modelos_tentados),
+                "modelo_final": modelo_final,
+                "total_chamadas_modelo": total_chamadas_modelo,
+                "passou_de_primeira": passou_de_primeira,
+                "houve_retry": houve_retry,
+                "resultado": resultado,
+                "motivo_falha": motivo_falha,
+                "tempo_total_s": tempo_total_s,
+                "palavras_total": palavras_total,
+                "chars_total": chars_total,
+                "chars_gancho": chars_gancho,
+                "chars_beneficio": chars_beneficio,
+                "chars_cta": chars_cta,
+            }
+            registrar_geracao(dados_log)
 
 gemini_service = GeminiService()
