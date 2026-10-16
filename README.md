@@ -91,15 +91,41 @@ npm run dev
 
 ---
 
-## 📋 Formato de Saída Gerado (Para o Veo3)
+## 📋 Fluxo Atual de Produção (Operação Veo3)
 
-| Cena | Duração | Prompt Visual para Veo3 (Inglês) | Locução/Áudio (Português) |
-| :--- | :--- | :--- | :--- |
-| **1. GANCHO** | 0-3s | Close-up tracking shot, cinematic lighting, start frame... | Gancho POV de retenção extrema |
-| **2. USO/BENEFÍCIO** | 3-8s | Dolly-in shot destacando benefício prático... | Resolução do problema visualmente |
-| **3. CTA** | 8-10s | Dynamic whip-pan direcionando para o canto inferior... | Escassez e urgência para o carrinho |
+O fluxo de ponta a ponta é desenhado para publicação ágil:
 
-Além da tabela, o sistema entrega:
-- **Diagnóstico da IA**: Justificativa em 1 linha da escolha do ângulo.
-- **3 Opções de Ganchos**: Dor, Curiosidade e Quebra de Padrão (prontos para teste A/B/C).
-- **Botões de Cópia com 1 Clique** em cada célula e botão para **Copiar Roteiro Completo**.
+```text
+Fotos do Produto + Contexto / Autocomplete Shopee
+                      ↓
+  Diagnóstico Neurovendas & Filtro de Ambiguidade
+                      ↓
+  1 Prompt de Vídeo Único de 10s com Locução embutida (Google Veo)
+                      ↓
+  Geração de 1 Clipe Contínuo de 10s no Google Veo
+                      ↓
+  Postagem Imediata com Título SEO, Legenda na Tela e Hashtags (#publicidade)
+```
+
+### Saída Gerada:
+1. **Prompt Único de Vídeo de 10s (Veo3)**: Ancorado na foto de referência, com anti-UI unificado e blocos temporais estruturados (`[0-3s]`, `[3-7s]`, `[7-10s]`) com narração em off embutida.
+2. **Locução em Português com Validação Híbrida**: Texto fluido sincronizado com limites estritos de palavras e caracteres calculados pelo backend.
+3. **Seletor Dinâmico de 3 Ganchos (0-3s)**: Dor, Curiosidade e Quebra de Padrão (alternáveis no cliente com latência zero).
+4. **Campos de Postagem (Shopee & TikTok)**:
+   - **Título SEO**: Restrito aos termos do autocomplete pesquisados pelo usuário.
+   - **Legenda na Tela / Sticker**: Máximo de 5 palavras para gancho visual.
+   - **Hashtags de Nicho**: Finalizando sempre com a tag obrigatória `#publicidade`.
+
+---
+
+## ⚠️ Módulo de Montagem (`montador.py`) — Utilitário Legado
+
+> **Aviso**: O script `montador.py` é um **utilitário legado** concebido para o formato anterior, que exigia a renderização de **3 clipes separados de vídeo** e sincronização local via FFmpeg e Gemini TTS.
+> No fluxo atual do **Mestre Gerador v3.0**, o Google Veo gera **1 clipe único contínuo de 10 segundos** com a fala embutida, tornando a montagem externa desnecessária para o fluxo de publicação.
+
+---
+
+## 📚 Documentação Técnica Adicional
+
+- [Visão Geral de Ponta a Ponta](docs/visao_geral_projeto.md)
+- [Manual de Regras do Sistema](docs/regras_do_sistema.md)
