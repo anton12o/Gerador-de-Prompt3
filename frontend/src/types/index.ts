@@ -86,10 +86,31 @@ export interface GenerateScriptPayload {
   refinement_instruction?: string;
 }
 
+export interface CopiedSnapshot {
+  prompt_enviado: string;
+  locucao_enviada: string;
+  fala_gancho: string;
+  fala_beneficio: string;
+  fala_cta: string;
+  gancho_usado: string;
+  data_copia: string;
+}
+
 export interface SavedScriptItem {
   id: string;
   createdAt: string;
+  createdAtDate?: string;
   productSummary: string;
+  context?: string;
   category?: string;
+  refinementInstruction?: string;
   result: ScriptResult;
+  copied_snapshot?: CopiedSnapshot;
+  prompt_enviado?: string;
+  locucao_enviada?: string;
+  fala_gancho?: string;
+  fala_beneficio?: string;
+  fala_cta?: string;
+  gancho_usado?: string;
+  data_copia?: string;
 }

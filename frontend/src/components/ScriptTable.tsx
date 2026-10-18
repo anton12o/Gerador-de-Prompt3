@@ -16,14 +16,12 @@ import {
   Type,
   Hash
 } from 'lucide-react';
-import type { ScriptResult, HookOption, ScriptPartes } from '../types';
+import type { ScriptResult, HookOption, ScriptPartes, CopiedSnapshot } from '../types';
+import { countWords, countChars, assembleLocucaoPt } from '../utils/textMetrics';
 
 interface ScriptTableProps {
   result: ScriptResult;
-}
-
-function countWords(str: string): number {
-  return str && str.trim() ? str.trim().split(/\s+/).length : 0;
+  onCopySnapshot?: (snapshot: CopiedSnapshot) => void;
 }
 
 function assemblePromptVeo(partes: ScriptPartes, hook: HookOption): string {
@@ -34,11 +32,7 @@ function assemblePromptVeo(partes: ScriptPartes, hook: HookOption): string {
   return `${header}\n\n${block_0_3}\n\n${block_3_7}\n\n${block_7_10}`;
 }
 
-function assembleLocucaoPt(partes: ScriptPartes, hook: HookOption): string {
-  return `${hook.fala} ${partes.fala_beneficio} ${partes.fala_cta}`.trim();
-}
-
-export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
+export const ScriptTable: React.FC<ScriptTableProps> = ({ result, onCopySnapshot }) => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Hook selector state (dor | curiosidade | quebra_de_padrao)
@@ -85,20 +79,42 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
 
   const activeLocucaoPt: string = (() => {
     if (result.partes && activeHookOption) {
-      return assembleLocucaoPt(result.partes, activeHookOption);
+      return assembleLocucaoPt(
+        activeHookOption.fala,
+        result.partes.fala_beneficio,
+        result.partes.fala_cta
+      );
     }
     return result.locucao_pt || '';
   })();
 
   // Word and character counts
   const totalWords = countWords(activeLocucaoPt);
-  const totalChars = activeLocucaoPt.length;
+  const totalChars = countChars(activeLocucaoPt);
   const hookWords = activeHookOption ? countWords(activeHookOption.fala) : 0;
-  const hookChars = activeHookOption ? activeHookOption.fala.length : 0;
+  const hookChars = activeHookOption ? countChars(activeHookOption.fala) : 0;
   const beneficioWords = result.partes ? countWords(result.partes.fala_beneficio) : 0;
-  const beneficioChars = result.partes ? result.partes.fala_beneficio.length : 0;
+  const beneficioChars = result.partes ? countChars(result.partes.fala_beneficio) : 0;
   const ctaWords = result.partes ? countWords(result.partes.fala_cta) : 0;
-  const ctaChars = result.partes ? result.partes.fala_cta.length : 0;
+  const ctaChars = result.partes ? countChars(result.partes.fala_cta) : 0;
+
+  const triggerCopySnapshot = () => {
+    if (!onCopySnapshot) return;
+    const falaGancho = activeHookOption?.fala || '';
+    const falaBeneficio = result.partes?.fala_beneficio || '';
+    const falaCta = result.partes?.fala_cta || '';
+    const locucao = activeLocucaoPt || assembleLocucaoPt(falaGancho, falaBeneficio, falaCta);
+
+    onCopySnapshot({
+      prompt_enviado: activePromptVeo,
+      locucao_enviada: locucao,
+      fala_gancho: falaGancho,
+      fala_beneficio: falaBeneficio,
+      fala_cta: falaCta,
+      gancho_usado: activeHookKey,
+      data_copia: new Date().toLocaleString('pt-BR'),
+    });
+  };
 
   const generateFormattedText = () => {
     // 10s Veo Format
@@ -198,7 +214,10 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
 
   const copyEntireScript = () => {
     const text = generateFormattedText();
-    if (text) copyToClipboard(text, 'all');
+    if (text) {
+      copyToClipboard(text, 'all');
+      triggerCopySnapshot();
+    }
   };
 
   const downloadScriptFile = () => {
@@ -558,7 +577,10 @@ export const ScriptTable: React.FC<ScriptTableProps> = ({ result }) => {
 
             <button
               type="button"
-              onClick={() => copyToClipboard(activePromptVeo, 'prompt-veo')}
+              onClick={() => {
+                copyToClipboard(activePromptVeo, 'prompt-veo');
+                triggerCopySnapshot();
+              }}
               className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors shadow-sm"
               title="Copiar prompt completo para Veo"
             >

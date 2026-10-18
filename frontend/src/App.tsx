@@ -6,7 +6,8 @@ import {
   History,
   Trash2,
   X,
-  ChevronRight
+  ChevronRight,
+  Download
 } from 'lucide-react';
 import { ImageDrop } from './components/ImageDrop';
 import { ClarificationBox } from './components/ClarificationBox';
@@ -14,7 +15,8 @@ import { ScriptTable } from './components/ScriptTable';
 import { RefinementBox } from './components/RefinementBox';
 import { Loader } from './components/Loader';
 import { generateScriptApi, checkBackendHealth } from './services/api';
-import type { ScriptResult, SavedScriptItem } from './types';
+import { montarCsv, baixarCsv, aplicarSnapshotHistorico } from './utils/csvExport';
+import type { ScriptResult, SavedScriptItem, CopiedSnapshot } from './types';
 
 const STORAGE_KEY_V4 = 'mestre_gerador_saved_scripts_v4';
 const STORAGE_KEY_LEGACY = 'mestre_gerador_saved_scripts_v3';
@@ -25,6 +27,7 @@ export function App() {
   const [currentContext, setCurrentContext] = useState<string>('');
   const [currentTermosAutocomplete, setCurrentTermosAutocomplete] = useState<string>('');
   const [scriptResult, setScriptResult] = useState<ScriptResult | null>(null);
+  const [currentScriptId, setCurrentScriptId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isBackendHealthy, setIsBackendHealthy] = useState<boolean | null>(null);
@@ -56,15 +59,25 @@ export function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const saveToHistory = (result: ScriptResult, contextText?: string) => {
+  const saveToHistory = (
+    result: ScriptResult,
+    contextText?: string,
+    refinementInstruction?: string
+  ) => {
     if (result.status !== 'completed') return;
+    const now = new Date();
+    const newId = `${Date.now()}`;
     const newItem: SavedScriptItem = {
-      id: `${Date.now()}`,
-      createdAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      id: newId,
+      createdAt: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      createdAtDate: now.toLocaleDateString('pt-BR'),
       productSummary: contextText?.slice(0, 50) || result.diagnosis.slice(0, 50) || 'Produto Shopee',
+      context: contextText || '',
       category: result.category || 'Geral',
+      refinementInstruction: refinementInstruction || '',
       result,
     };
+    setCurrentScriptId(newId);
     setSavedScripts((prev) => {
       const updated = [newItem, ...prev.slice(0, 19)]; // keep last 20
       localStorage.setItem(STORAGE_KEY_V4, JSON.stringify(updated));
@@ -72,16 +85,37 @@ export function App() {
     });
   };
 
+  const handleCopySnapshot = (snapshot: CopiedSnapshot) => {
+    setSavedScripts((prev) => {
+      const updated = aplicarSnapshotHistorico(prev, currentScriptId, snapshot);
+      try {
+        localStorage.setItem(STORAGE_KEY_V4, JSON.stringify(updated));
+      } catch {
+        // Ignora erro de cota local
+      }
+      return updated;
+    });
+  };
+
   const clearHistory = () => {
-    if (confirm('Deseja limpar todo o histórico de roteiros salvos?')) {
+    if (window.confirm('Tem certeza de que deseja limpar permanentemente todo o histórico de roteiros salvos?')) {
       setSavedScripts([]);
+      setCurrentScriptId(null);
       localStorage.removeItem(STORAGE_KEY_V4);
       localStorage.removeItem(STORAGE_KEY_LEGACY);
     }
   };
 
+  const handleExportCsv = () => {
+    if (savedScripts.length === 0) return;
+    const csv = montarCsv(savedScripts);
+    const dataHoje = new Date().toISOString().split('T')[0];
+    baixarCsv(csv, `historico_roteiros_veo_${dataHoje}.csv`);
+  };
+
   const loadSavedScript = (item: SavedScriptItem) => {
     setScriptResult(item.result);
+    setCurrentScriptId(item.id);
     setIsHistoryOpen(false);
   };
 
@@ -199,7 +233,7 @@ export function App() {
       });
       setScriptResult(result);
       if (result.status === 'completed') {
-        saveToHistory(result, `${currentContext} (Refinado: ${instruction})`);
+        saveToHistory(result, currentContext, instruction);
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Falha ao refinar roteiro.');
@@ -211,6 +245,7 @@ export function App() {
   // 5. Reset to New Product
   const handleReset = () => {
     setScriptResult(null);
+    setCurrentScriptId(null);
     setCurrentImagesBase64([]);
     setCurrentContext('');
     setCurrentTermosAutocomplete('');
@@ -340,7 +375,7 @@ export function App() {
         {/* State B: Script Ready (Completed) */}
         {!isLoading && scriptResult?.status === 'completed' && (
           <div className="space-y-8 animate-fade-in">
-            <ScriptTable result={scriptResult} />
+            <ScriptTable result={scriptResult} onCopySnapshot={handleCopySnapshot} />
             <RefinementBox onRefine={handleRefine} isLoading={isLoading} />
           </div>
         )}
@@ -384,6 +419,16 @@ export function App() {
                             {item.category || 'Shopee'}
                           </span>
                           <span className="text-[10px] text-slate-500">{item.createdAt}</span>
+                          {item.refinementInstruction && (
+                            <span className="text-[9px] font-semibold px-1.5 py-0.5 bg-slate-800 text-amber-400 rounded">
+                              Refinado
+                            </span>
+                          )}
+                          {item.data_copia && (
+                            <span className="text-[9px] font-semibold px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 rounded">
+                              Copiado
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-slate-200 font-medium line-clamp-2">
                           {item.productSummary}
@@ -397,7 +442,17 @@ export function App() {
             </div>
 
             {savedScripts.length > 0 && (
-              <div className="pt-4 border-t border-slate-800">
+              <div className="pt-4 border-t border-slate-800 space-y-2">
+                <button
+                  type="button"
+                  onClick={handleExportCsv}
+                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-amber-500/20"
+                  title="Exportar planilha CSV com as 22 colunas e roteiros enviados"
+                >
+                  <Download className="w-4 h-4 text-slate-950" />
+                  Exportar Histórico (CSV)
+                </button>
+
                 <button
                   type="button"
                   onClick={clearHistory}
