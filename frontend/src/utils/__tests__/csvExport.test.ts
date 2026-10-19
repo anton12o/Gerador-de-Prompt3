@@ -4,6 +4,7 @@ import {
   montarCsv,
   aplicarSnapshotHistorico,
   escaparCelulaCsv,
+  extrairNomeProduto,
 } from '../csvExport';
 import { calcularMetricasLocucao, countChars, countWords } from '../textMetrics';
 import type { SavedScriptItem, CopiedSnapshot } from '../../types';
@@ -25,14 +26,15 @@ describe('Exportação de Histórico em CSV (22 Colunas)', () => {
       createdAt: '18:00',
       createdAtDate: '18/10/2026',
       productSummary: 'Almofada Ortopédica',
-      context: 'Almofada ergonômica para dores lombares',
+      context: 'Almofada ergonômica para dores lombares\nLinha 2 com especificações detalhadas',
       category: 'Saúde e Conforto',
-      refinementInstruction: 'Focar na densidade da espuma',
+      refinementInstruction: 'Mais Dinâmico / Rápido',
       result: {
         status: 'completed',
         diagnosis: 'Dores nas costas no trabalho',
         category: 'Saúde e Conforto',
         modelo_utilizado: 'gemini-3.5-flash-lite',
+        refinement_summary: 'Resumo do modelo que NÃO deve ir para a coluna refinamento',
       },
       data_copia: '18/10/2026 18:05:00',
       gancho_usado: 'dor',
@@ -58,6 +60,7 @@ describe('Exportação de Histórico em CSV (22 Colunas)', () => {
     expect(valores).toHaveLength(22);
 
     expect(valores[0]).toBe('18/10/2026');
+    // Coluna produto: primeira linha do contexto, não o texto inteiro!
     expect(valores[1]).toBe('Almofada ergonômica para dores lombares');
     expect(valores[2]).toBe('gemini-3.5-flash-lite');
     expect(valores[3]).toBe('dor');
@@ -78,8 +81,8 @@ describe('Exportação de Histórico em CSV (22 Colunas)', () => {
       expect(valores[i]).toBe('');
     }
 
-    // Coluna 22: refinamento
-    expect(valores[21]).toBe('Focar na densidade da espuma');
+    // Coluna 22: refinamento com a instrução exata do usuário (NUNCA o resumo do modelo)
+    expect(valores[21]).toBe('Mais Dinâmico / Rápido');
   });
 
   it('montarCsv: registro legado ou nunca copiado mantém campos vazios e 22 colunas', () => {
@@ -92,8 +95,9 @@ describe('Exportação de Histórico em CSV (22 Colunas)', () => {
         diagnosis: 'Água gelada 24h',
         category: 'Cozinha',
         modelo_utilizado: 'gemini-3.8-flash',
+        refinement_summary: 'Resumo antigo do modelo',
       },
-      // Sem data_copia nem prompt_enviado
+      // Sem data_copia, nem refinementInstruction
     };
 
     const csv = montarCsv([itemLegado]);
@@ -113,14 +117,15 @@ describe('Exportação de Histórico em CSV (22 Colunas)', () => {
     expect(valores[8]).toBe(''); // prompt_enviado
     expect(valores[9]).toBe(''); // locucao_enviada
     expect(valores[10]).toBe(''); // data_copia
-    expect(valores[21]).toBe(''); // refinamento vazio
+    // Coluna 22: refinamento VAZIO (ignora refinement_summary do modelo)
+    expect(valores[21]).toBe('');
   });
 
   it('montarCsv: texto com aspas, ponto e vírgula e quebras de linha mantém colunas estáveis', () => {
     const itemComplexo: SavedScriptItem = {
       id: '1729280000000',
       createdAt: '19:00',
-      context: 'Produto com "aspas", ponto; e \n quebra de linha',
+      context: 'Produto com "aspas", ponto; e detalhe\nLinha 2 de anúncio descartada',
       productSummary: 'Resumo',
       category: 'Geral',
       result: {
@@ -145,6 +150,42 @@ describe('Exportação de Histórico em CSV (22 Colunas)', () => {
     expect(escaparCelulaCsv('texto com "aspas" e ;')).toBe(
       '"texto com ""aspas"" e ;"'
     );
+  });
+});
+
+describe('extrairNomeProduto (Regras de produto curto)', () => {
+  it('usa a PRIMEIRA LINHA do campo de contexto (descarta o restante do anúncio)', () => {
+    const context = `Mini Liquidificador Portátil 500ml\nPotência de 200W\nBateria recarregável\nFrete grátis para todo Brasil`;
+    const produto = extrairNomeProduto(context, 'Cozinha');
+    expect(produto).toBe('Mini Liquidificador Portátil 500ml');
+  });
+
+  it('limita a primeira linha a no máximo 80 caracteres', () => {
+    const contextLong =
+      'Mini Liquidificador Portátil USB Shake Garrafa Elétrica Recarregável Potente Para Sucos e Vitaminas Academia Cozinha e Escritório\nOutra linha';
+    const produto = extrairNomeProduto(contextLong, 'Cozinha');
+    expect(produto.length).toBeLessThanOrEqual(80);
+    expect(produto).toBe(contextLong.split('\n')[0].slice(0, 80).trim());
+  });
+
+  it('se a primeira linha for apenas um link, descarta o link e usa a categoria', () => {
+    const contextLink = 'https://shopee.com.br/produto-exemplo-12345\nOutras informações';
+    const produto = extrairNomeProduto(contextLink, 'Eletrônicos');
+    expect(produto).toBe('Eletrônicos');
+    expect(produto).not.toContain('http');
+  });
+
+  it('se houver texto e link na primeira linha, remove o link e preserva o texto', () => {
+    const contextTextoComLink = 'Garrafa Inox 600ml https://shopee.com.br/garrafa-xyz\nMais detalhes';
+    const produto = extrairNomeProduto(contextTextoComLink, 'Cozinha');
+    expect(produto).toBe('Garrafa Inox 600ml');
+    expect(produto).not.toContain('http');
+  });
+
+  it('se o contexto for vazio ou nulo, usa a categoria', () => {
+    expect(extrairNomeProduto('', 'Beleza')).toBe('Beleza');
+    expect(extrairNomeProduto(undefined, 'Moda')).toBe('Moda');
+    expect(extrairNomeProduto('   ', 'Casa')).toBe('Casa');
   });
 });
 

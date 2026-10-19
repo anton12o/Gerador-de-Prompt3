@@ -70,6 +70,27 @@ export function aplicarSnapshotHistorico(
 }
 
 /**
+ * Extrai o nome do produto para o CSV:
+ * - PRIMEIRA LINHA do campo de contexto, até 80 caracteres.
+ * - Remove links da primeira linha. Se for apenas link ou vazio, usa a categoria.
+ * - NUNCA o texto inteiro do anúncio nem o link.
+ */
+export function extrairNomeProduto(context?: string, category?: string): string {
+  if (context && context.trim()) {
+    const linhas = context.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (linhas.length > 0) {
+      // Remove URLs http/https se presentes na primeira linha
+      const primeiraLinhaSemLink = linhas[0].replace(/https?:\/\/\S+/gi, '').trim();
+      const truncado = primeiraLinhaSemLink.slice(0, 80).trim();
+      if (truncado) {
+        return truncado;
+      }
+    }
+  }
+  return category?.trim() || '';
+}
+
+/**
  * Função pura que recebe os itens do histórico e monta a string do CSV com 22 colunas.
  * Inclui o BOM UTF-8 (\uFEFF) para visualização correta no Excel e Google Sheets.
  */
@@ -94,9 +115,9 @@ export function montarCsv(items: SavedScriptItem[]): string {
       dataFormatada = item.createdAt;
     }
 
-    // Produto: contexto; se vazio, apenas a categoria (não o diagnóstico completo)
-    const produto =
-      item.context?.trim() || item.category || item.result?.category || '';
+    // 1. Produto: PRIMEIRA LINHA do contexto, até 80 caracteres. Se vazio (ou link), usa a categoria.
+    const categoria = item.category || item.result?.category || '';
+    const produto = extrairNomeProduto(item.context, categoria);
 
     // Modelo utilizado
     const modelo = item.result?.modelo_utilizado || '';
@@ -129,9 +150,9 @@ export function montarCsv(items: SavedScriptItem[]): string {
       charsTotal = countChars(locucaoEnviada).toString();
     }
 
-    // Instrução de refinamento (vazia se original)
-    const refinamento =
-      item.refinementInstruction || item.result?.refinement_summary || '';
+    // 2. Coluna 'refinamento': apenas a instrução digitada pelo usuário ou botão clicado.
+    // NUNCA usa os resumos escritos pelo modelo (refinement_summary).
+    const refinamento = item.refinementInstruction?.trim() || '';
 
     const valoresLinha = [
       escaparCelulaCsv(dataFormatada),
