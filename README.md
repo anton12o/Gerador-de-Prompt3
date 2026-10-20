@@ -25,7 +25,7 @@ Um gerador de prompts comum é passivo: você joga uma foto e ele cospe um texto
 
 ## 💻 Pré-requisitos
 
-- **Python**: versão **3.11** ou superior (desenvolvido e testado com Python 3.14 no Windows).
+- **Python**: testado em **Python 3.14** (no Windows).
 - **Node.js**: versão **18** ou **20+** (com npm).
 - **Chave de API do Google Gemini**: obtenha gratuitamente no [Google AI Studio](https://aistudio.google.com/).
 
@@ -46,17 +46,16 @@ A partir da raiz do projeto:
      python3 -m venv backend/.venv
      ```
 
-2. Instale as dependências principais e de desenvolvimento dentro dele:
+2. Instale as dependências fixadas dentro do ambiente virtual:
    - **No Windows**:
      ```cmd
-     backend\.venv\Scripts\pip install -r backend\requirements.txt
-     backend\.venv\Scripts\pip install -r backend\requirements-dev.txt
+     backend\.venv\Scripts\pip install -r backend\requirements.lock.txt
      ```
    - **No Linux / macOS**:
      ```bash
-     backend/.venv/bin/pip install -r backend/requirements.txt
-     backend/.venv/bin/pip install -r backend/requirements-dev.txt
+     backend/.venv/bin/pip install -r backend/requirements.lock.txt
      ```
+   *(Nota: `backend/requirements.txt` e `backend/requirements-dev.txt` são mantidos como referência das dependências diretas do projeto).*
 
 3. Configure o arquivo de variáveis de ambiente:
    Copie o modelo `backend/.env.example` para `backend/.env`:
@@ -173,8 +172,9 @@ Gerador/
 │   │   ├── services/logger_csv.py# Registro de métricas e auditoria técnica
 │   │   └── main.py               # Ponto de entrada FastAPI com CORS
 │   ├── tests/                    # Suíte de testes do backend
-│   ├── requirements.txt          # Dependências principais de produção
-│   ├── requirements-dev.txt      # Dependências de desenvolvimento e testes
+│   ├── requirements.txt          # Dependências diretas de produção
+│   ├── requirements-dev.txt      # Dependências diretas de desenvolvimento
+│   ├── requirements.lock.txt     # Versões exatas e fixadas de todas as dependências
 │   └── .env.example              # Modelo de variáveis de ambiente
 │
 ├── frontend/                     # Interface do Usuário (React 19 + TypeScript + Tailwind v4)
