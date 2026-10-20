@@ -1,7 +1,7 @@
 import logging
 from fastapi import APIRouter, HTTPException, status
 from app.schemas.script import GenerateScriptRequest, ScriptResult
-from app.services.gemini import gemini_service
+from app.services.gemini import get_gemini_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["Scripts"])
@@ -20,7 +20,8 @@ async def generate_script(request: GenerateScriptRequest):
     - Se for claro (ou se já tiver respostas/refinamento), retorna status 'completed' com o roteiro e tabela para Veo3.
     """
     try:
-        result = await gemini_service.generate_script(request)
+        service = get_gemini_service()
+        result = await service.generate_script(request)
         return result
     except HTTPException:
         raise
@@ -36,8 +37,9 @@ async def generate_script(request: GenerateScriptRequest):
 
 @router.get("/health", summary="Status da API")
 async def health_check():
+    service = get_gemini_service()
     return {
         "status": "online",
         "service": "Mestre Gerador Shopee Vídeo v3.0",
-        "model": gemini_service.model
+        "model": service.model
     }

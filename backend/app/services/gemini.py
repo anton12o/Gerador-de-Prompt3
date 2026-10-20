@@ -25,9 +25,9 @@ logger = logging.getLogger(__name__)
 
 # Modelos por prioridade: modelos de alta velocidade/cota primeiro, seguidos pelo default
 FALLBACK_MODELS = [
-    "gemini-3.5-flash-lite",    # Alta cota gratuita (1500 req/dia), ultra-rápido (< 2s)
+    "gemini-3.5-flash-lite",    # cota: ver o painel do AI Studio
     "gemini-3.1-flash-lite",    # Modelo secundário leve e estável
-    settings.DEFAULT_MODEL,     # gemini-3.8-flash (cota de 20 req/dia no tier gratuito)
+    settings.DEFAULT_MODEL,     # cota: ver o painel do AI Studio
 ]
 
 # ==============================================================================
@@ -239,15 +239,27 @@ def validar_e_contar_palavras(result: ScriptResult) -> tuple[bool, str, Contagem
 
 
 class GeminiService:
+    model: str = FALLBACK_MODELS[0]
+
     def __init__(self):
-        if not settings.GEMINI_API_KEY:
-            raise ValueError("GEMINI_API_KEY não foi configurada no arquivo .env.")
-        # Limite cravado configurado no cliente HTTP para abortar antes dos 60s do frontend
-        self.client = genai.Client(
-            api_key=settings.GEMINI_API_KEY,
-            http_options=types.HttpOptions(timeout=int(GEMINI_TIMEOUT_SECONDS * 1000))
-        )
-        self.model = FALLBACK_MODELS[0]
+        self.client: Optional[genai.Client] = None
+        self.model: str = FALLBACK_MODELS[0]
+        self._current_api_key: Optional[str] = None
+
+    def _get_client(self) -> genai.Client:
+        api_key = settings.GEMINI_API_KEY
+        if not api_key:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="GEMINI_API_KEY não configurada em backend/.env"
+            )
+        if self.client is None or self._current_api_key != api_key:
+            self.client = genai.Client(
+                api_key=api_key,
+                http_options=types.HttpOptions(timeout=int(GEMINI_TIMEOUT_SECONDS * 1000))
+            )
+            self._current_api_key = api_key
+        return self.client
 
     def _decode_image(self, image_data: str, fallback_mime: str = "image/jpeg"):
         try:
@@ -289,6 +301,7 @@ class GeminiService:
         chars_cta: str = ""
 
         try:
+            client = self._get_client()
             contents: List[Any] = []
 
             # 1. Process multiple or single images if provided
@@ -598,4 +611,19 @@ class GeminiService:
             }
             registrar_geracao(dados_log)
 
-gemini_service = GeminiService()
+_gemini_service: Optional[GeminiService] = None
+
+
+def get_gemini_service() -> GeminiService:
+    """Retorna a instância do serviço Gemini (criada sob demanda)."""
+    global _gemini_service
+    if _gemini_service is None:
+        _gemini_service = GeminiService()
+    return _gemini_service
+
+
+def __getattr__(name: str):
+    """Permite acesso lazy a gemini_service sem instanciar na importação."""
+    if name == "gemini_service":
+        return get_gemini_service()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

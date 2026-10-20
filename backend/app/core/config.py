@@ -10,7 +10,7 @@ class Settings:
     PROJECT_NAME: str = "Mestre Gerador Shopee Vídeo v3.0 (Tech Lemonade Logic)"
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     DEFAULT_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
-    HOST: str = os.getenv("HOST", "0.0.0.0")
+    HOST: str = os.getenv("HOST", "127.0.0.1")
     PORT: int = int(os.getenv("PORT", "8000"))
 
 settings = Settings()

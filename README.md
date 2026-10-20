@@ -35,25 +35,44 @@ Um gerador de prompts comum é passivo: você joga uma foto e ele cospe um texto
 
 ### 1. Backend (Python / FastAPI)
 A partir da raiz do projeto:
-```bash
-cd backend
-pip install -r requirements.txt
-```
 
-Copie o arquivo de exemplo de variáveis de ambiente e configure sua chave de API:
-- **No Windows**:
-  ```cmd
-  copy .env.example .env
-  ```
-- **No Linux / macOS**:
-  ```bash
-  cp .env.example .env
-  ```
+1. Crie o ambiente virtual:
+   - **No Windows**:
+     ```cmd
+     py -3.14 -m venv backend\.venv
+     ```
+   - **No Linux / macOS**:
+     ```bash
+     python3 -m venv backend/.venv
+     ```
 
-Edite o arquivo `backend/.env` e insira sua chave da API:
-```ini
-GEMINI_API_KEY=sua_chave_aqui
-```
+2. Instale as dependências principais e de desenvolvimento dentro dele:
+   - **No Windows**:
+     ```cmd
+     backend\.venv\Scripts\pip install -r backend\requirements.txt
+     backend\.venv\Scripts\pip install -r backend\requirements-dev.txt
+     ```
+   - **No Linux / macOS**:
+     ```bash
+     backend/.venv/bin/pip install -r backend/requirements.txt
+     backend/.venv/bin/pip install -r backend/requirements-dev.txt
+     ```
+
+3. Configure o arquivo de variáveis de ambiente:
+   Copie o modelo `backend/.env.example` para `backend/.env`:
+   - **No Windows**:
+     ```cmd
+     copy backend\.env.example backend\.env
+     ```
+   - **No Linux / macOS**:
+     ```bash
+     cp backend/.env.example backend/.env
+     ```
+
+   Edite o arquivo `backend/.env` e insira sua chave da API:
+   ```ini
+   GEMINI_API_KEY=sua_chave_aqui
+   ```
 
 ### 2. Frontend (React / Vite)
 A partir da raiz do projeto:
@@ -105,14 +124,15 @@ npm run dev
 A suíte de testes cobre a validação de regras de neurovendas, limites estritos de texto, logging e exportação CSV.
 
 ### Testes do Backend (Pytest)
-A partir da raiz do projeto:
+A partir da raiz do projeto, executando com o Python do ambiente virtual:
 - **No Windows**:
   ```cmd
-  py -3.14 -m pytest backend/tests/
+  backend\.venv\Scripts\python -m pytest backend/tests/
   ```
+  *(ou com o ambiente ativado: `pytest backend/tests/`)*
 - **No Linux / macOS**:
   ```bash
-  pytest backend/tests/
+  backend/.venv/bin/pytest backend/tests/
   ```
 
 ### Testes do Frontend (Vitest)
@@ -153,7 +173,8 @@ Gerador/
 │   │   ├── services/logger_csv.py# Registro de métricas e auditoria técnica
 │   │   └── main.py               # Ponto de entrada FastAPI com CORS
 │   ├── tests/                    # Suíte de testes do backend
-│   ├── requirements.txt          # Dependências Python
+│   ├── requirements.txt          # Dependências principais de produção
+│   ├── requirements-dev.txt      # Dependências de desenvolvimento e testes
 │   └── .env.example              # Modelo de variáveis de ambiente
 │
 ├── frontend/                     # Interface do Usuário (React 19 + TypeScript + Tailwind v4)
